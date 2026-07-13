@@ -1,72 +1,182 @@
-# report_generator.py
-
 import pandas as pd
-import json
+
+from app.kpi_service import get_kpi
 
 
-def generate_action_report(df):
+def generate_action_report(load_data):
+    """
+    Generate action performance report grouped by Hardware and Action.
 
-    with open("app/kpis.json", "r") as f:
-        kpis = json.load(f)
+    Values are kept in milliseconds.
+    KPI is loaded from SQLite database using the action name.
 
-    report = []
+    PASS/FAIL rule:
+    - PASS when 90th Percentil <= KPI
+    - FAIL when 90th Percentil > KPI
+    - NO KPI when KPI is not registered
+    """
+
+    columns = [
+        "Hardware",
+        "Action",
+        "KPI",
+        "Total Quantity",
+        "Above KPI",
+        "Min",
+        "Max",
+        "Average",
+        "Std Deviation",
+        "50th Percentil",
+        "90th Percentil",
+        "Status",
+    ]
+
+    if load_data is None or load_data.empty:
+        return pd.DataFrame(columns=columns)
+
+    df = load_data.copy()
+
+    # Normalize expected column names
+    if "ActionName" in df.columns and "Action" not in df.columns:
+        df["Action"] = df["ActionName"]
+
+    if "Duration" not in df.columns:
+        possible_duration_columns = [
+            "Elapsed",
+            "ResponseTime",
+            "Response Time",
+            "DurationMs",
+            "DurationMS",
+            "duration",
+        ]
+
+        for column in possible_duration_columns:
+            if column in df.columns:
+                df["Duration"] = df[column]
+                break
+
+    required_columns = [
+        "Hardware",
+        "Action",
+        "Duration",
+    ]
+
+    for column in required_columns:
+        if column not in df.columns:
+            df[column] = ""
+
+    df["Hardware"] = df["Hardware"].fillna("").astype(str)
+    df["Action"] = df["Action"].fillna("").astype(str)
+
+    # Keep values in milliseconds
+    df["Duration"] = pd.to_numeric(
+        df["Duration"],
+        errors="coerce",
+    )
+
+    df = df.dropna(
+        subset=[
+            "Duration",
+        ]
+    )
+
+    if df.empty:
+        return pd.DataFrame(columns=columns)
+
+    report_rows = []
 
     grouped = df.groupby(
         [
             "Hardware",
-            "Action"
-        ]
+            "Action",
+        ],
+        dropna=False,
     )
 
-    for key, group in grouped:
+    for group_keys, group_df in grouped:
+        hardware, action = group_keys
 
-        hardware = key[0]
-        action = key[1]
+        durations = group_df["Duration"].dropna()
 
-        kpi = kpis["actions"].get(action, 400)
+        if durations.empty:
+            continue
 
-        durations = group["Duration"]
+        kpi = get_kpi(action)
 
-        above_kpi = len(
-            durations[durations > kpi]
+        if kpi is None:
+            kpi = 0
+
+        total_quantity = int(durations.count())
+
+        if kpi > 0:
+            above_kpi = int(
+                (durations > kpi).sum()
+            )
+        else:
+            above_kpi = 0
+
+        min_value = float(
+            durations.min()
         )
 
-        total = len(durations)
+        max_value = float(
+            durations.max()
+        )
 
-        report.append({
+        average_value = float(
+            durations.mean()
+        )
 
-            "Hardware": hardware,
+        std_deviation = float(
+            durations.std(ddof=0)
+        )
 
-            "Action": action,
+        percentile_50 = float(
+            durations.quantile(0.50)
+        )
 
-            "KPI": kpi,
+        percentile_90 = float(
+            durations.quantile(0.90)
+        )
 
-            "Total Quantity": total,
+        # Correct PASS/FAIL rule:
+        # Performance result must be evaluated by 90th Percentil, not Average.
+        if kpi > 0 and percentile_90 <= kpi:
+            status = "PASS"
+        elif kpi > 0 and percentile_90 > kpi:
+            status = "FAIL"
+        else:
+            status = "NO KPI"
 
-            "Above KPI %":
-            round(
-                (above_kpi / total) * 100,
-                2
-            ),
+        report_rows.append(
+            {
+                "Hardware": hardware,
+                "Action": action,
+                "KPI": round(kpi, 2),
+                "Total Quantity": total_quantity,
+                "Above KPI": above_kpi,
+                "Min": round(min_value, 2),
+                "Max": round(max_value, 2),
+                "Average": round(average_value, 2),
+                "Std Deviation": round(std_deviation, 2),
+                "50th Percentil": round(percentile_50, 2),
+                "90th Percentil": round(percentile_90, 2),
+                "Status": status,
+            }
+        )
 
-            "Min":
-            round(float(durations.min()), 2),
+    report = pd.DataFrame(report_rows)
 
-            "Max":
-            round(float(durations.max()), 2),
+    if report.empty:
+        return pd.DataFrame(columns=columns)
 
-            "Average":
-            round(float(durations.mean()), 2),
+    report = report[columns]
 
-            "StdDev":
-            round(float(durations.std() or 0), 2),
+    report = report.sort_values(
+        by=[
+            "Action",
+            "Hardware",
+        ]
+    ).reset_index(drop=True)
 
-            "P50":
-            round(float(durations.quantile(0.50)), 2),
-
-            "P90":
-            round(float(durations.quantile(0.90)), 2)
-
-        })
-
-    return pd.DataFrame(report)
+    return report

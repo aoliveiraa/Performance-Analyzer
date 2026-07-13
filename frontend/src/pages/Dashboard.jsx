@@ -1,25 +1,44 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import api from "../services/api";
 
 import {
-  Container,
-  Typography,
-  Grid,
+  Alert,
+  Box,
+  Button,
   Card,
   CardContent,
+  Chip,
+  CircularProgress,
+  Container,
+  Divider,
+  FormControl,
+  Grid,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
+  Snackbar,
+  Stack,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
+  TextField,
+  Typography,
 } from "@mui/material";
 
+import RefreshIcon from "@mui/icons-material/Refresh";
+import SpeedIcon from "@mui/icons-material/Speed";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
+import MemoryIcon from "@mui/icons-material/Memory";
+import AssessmentIcon from "@mui/icons-material/Assessment";
+import SaveIcon from "@mui/icons-material/Save";
+
+import RunUploadPanel from "../components/RunUploadPanel";
+import UploadFilesPanel from "../components/UploadFilesPanel";
 import ActionTrendChart from "../components/ActionTrendChart";
 import MemoryTrendChart from "../components/MemoryTrendChart";
 
@@ -28,85 +47,314 @@ function Dashboard() {
   const [actions, setActions] = useState([]);
   const [memoryLeaks, setMemoryLeaks] = useState([]);
   const [counters, setCounters] = useState([]);
+  const [kpis, setKpis] = useState([]);
 
-  const [selectedAction, setSelectedAction] =
-    useState("ALL");
+  const [selectedAction, setSelectedAction] = useState("ALL");
+  const [selectedHardware, setSelectedHardware] = useState("ALL");
+  const [selectedRunId, setSelectedRunId] = useState("");
 
-  const [selectedHardware, setSelectedHardware] =
-    useState("ALL");
+  const [selectedKpiAction, setSelectedKpiAction] = useState("");
+  const [kpiValue, setKpiValue] = useState("");
+
+  const [loading, setLoading] = useState(true);
+  const [savingKpi, setSavingKpi] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
-    loadDashboard();
-    loadActions();
-    loadMemoryLeaks();
-    loadCounters();
+    loadAllData();
   }, []);
 
-  const loadDashboard = async () => {
-    try {
-      const response = await api.get("/dashboard/full");
-      setData(response.data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const loadActions = async () => {
-    try {
-      const response = await api.get("/reports/actions");
-      setActions(response.data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const loadMemoryLeaks = async () => {
-    try {
-      const response = await api.get("/reports/memory-leaks");
-      setMemoryLeaks(response.data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const loadCounters = async () => {
-    try {
-      const response = await api.get("/reports/counters");
-      setCounters(response.data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  if (!data) {
-    return <h2>Carregando...</h2>;
+  const loadRunData = async (runId) => {
+  if (!runId) {
+    return;
   }
 
-  const availableActions = [
-    "ALL",
-    ...new Set(actions.map((item) => item.Action)),
-  ];
+  setLoading(true);
+  setErrorMessage("");
 
-  const availableHardware = [
-    "ALL",
-    ...new Set(actions.map((item) => item.Hardware)),
-  ];
+  try {
+    const [
+      dashboardResponse,
+      actionsResponse,
+      memoryLeaksResponse,
+      countersResponse,
+      kpisResponse,
+    ] = await Promise.allSettled([
+      api.get(`/dashboard/${runId}`),
+      api.get(`/reports/actions/${runId}`),
+      api.get(`/reports/memory-leaks/${runId}`),
+      api.get(`/reports/counters/${runId}`),
+      api.get("/kpis"),
+    ]);
 
-  const filteredActions = actions.filter((item) => {
-    const actionMatch =
-      selectedAction === "ALL" ||
-      item.Action === selectedAction;
+    if (dashboardResponse.status === "fulfilled") {
+      setData(dashboardResponse.value.data);
+    } else {
+      console.error("Run dashboard error:", dashboardResponse.reason);
+    }
 
-    const hardwareMatch =
-      selectedHardware === "ALL" ||
-      item.Hardware === selectedHardware;
+    if (actionsResponse.status === "fulfilled") {
+      setActions(actionsResponse.value.data || []);
+    } else {
+      console.error("Run actions error:", actionsResponse.reason);
+    }
 
-    return actionMatch && hardwareMatch;
-  });
+    if (memoryLeaksResponse.status === "fulfilled") {
+      setMemoryLeaks(memoryLeaksResponse.value.data || []);
+    } else {
+      console.error("Run memory leaks error:", memoryLeaksResponse.reason);
+    }
 
-  const groupedActions =
-    filteredActions.reduce((groups, item) => {
-      const action = item.Action;
+    if (countersResponse.status === "fulfilled") {
+      setCounters(countersResponse.value.data || []);
+    } else {
+      console.error("Run counters error:", countersResponse.reason);
+    }
+
+    if (kpisResponse.status === "fulfilled") {
+      setKpis(kpisResponse.value.data || []);
+    }
+
+    const hasAnyError =
+      dashboardResponse.status === "rejected" ||
+      actionsResponse.status === "rejected" ||
+      memoryLeaksResponse.status === "rejected" ||
+      countersResponse.status === "rejected";
+
+    if (hasAnyError) {
+      setErrorMessage(
+        "Some run sections could not be loaded. Please check the backend terminal."
+      );
+    }
+  } catch (error) {
+    console.error(error);
+    setErrorMessage("Could not load selected run data.");
+  } finally {
+    setLoading(false);
+  }
+};
+
+  const loadAllData = async () => {
+    setLoading(true);
+    setErrorMessage("");
+
+    try {
+      const [
+        dashboardResponse,
+        actionsResponse,
+        memoryLeaksResponse,
+        countersResponse,
+        kpisResponse,
+      ] = await Promise.allSettled([
+        api.get("/dashboard/full"),
+        api.get("/reports/actions"),
+        api.get("/reports/memory-leaks"),
+        api.get("/reports/counters"),
+        api.get("/kpis"),
+      ]);
+
+      if (dashboardResponse.status === "fulfilled") {
+        setData(dashboardResponse.value.data);
+      } else {
+        console.error("Dashboard error:", dashboardResponse.reason);
+      }
+
+      if (actionsResponse.status === "fulfilled") {
+        setActions(actionsResponse.value.data || []);
+      } else {
+        console.error("Actions error:", actionsResponse.reason);
+      }
+
+      if (memoryLeaksResponse.status === "fulfilled") {
+        setMemoryLeaks(memoryLeaksResponse.value.data || []);
+      } else {
+        console.error("Memory leaks error:", memoryLeaksResponse.reason);
+      }
+
+      if (countersResponse.status === "fulfilled") {
+        setCounters(countersResponse.value.data || []);
+      } else {
+        console.error("Counters error:", countersResponse.reason);
+      }
+
+      if (kpisResponse.status === "fulfilled") {
+        setKpis(kpisResponse.value.data || []);
+      } else {
+        console.error("KPIs error:", kpisResponse.reason);
+      }
+
+      const hasAnyError =
+        dashboardResponse.status === "rejected" ||
+        actionsResponse.status === "rejected" ||
+        memoryLeaksResponse.status === "rejected" ||
+        countersResponse.status === "rejected" ||
+        kpisResponse.status === "rejected";
+
+      if (hasAnyError) {
+        setErrorMessage(
+          "Some dashboard sections could not be loaded. Please check the backend terminal for details."
+        );
+      }
+    } catch (error) {
+      console.error(error);
+      setErrorMessage("Could not load dashboard data.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const reloadReportsAfterKpiSave = async () => {
+    try {
+      const [actionsResponse, kpisResponse, dashboardResponse] =
+        await Promise.allSettled([
+          api.get("/reports/actions"),
+          api.get("/kpis"),
+          api.get("/dashboard/full"),
+        ]);
+
+      if (actionsResponse.status === "fulfilled") {
+        setActions(actionsResponse.value.data || []);
+      }
+
+      if (kpisResponse.status === "fulfilled") {
+        setKpis(kpisResponse.value.data || []);
+      }
+
+      if (dashboardResponse.status === "fulfilled") {
+        setData(dashboardResponse.value.data);
+      }
+    } catch (error) {
+      console.error(error);
+      setErrorMessage("KPI was saved, but dashboard refresh failed.");
+    }
+  };
+
+  const saveKpi = async () => {
+    if (!selectedKpiAction) {
+      setErrorMessage("Please select an Action before saving the KPI.");
+      return;
+    }
+
+    const numericKpi = Number(kpiValue);
+
+    if (!Number.isFinite(numericKpi) || numericKpi <= 0) {
+      setErrorMessage("Please enter a valid KPI value greater than zero.");
+      return;
+    }
+
+    setSavingKpi(true);
+    setErrorMessage("");
+
+    try {
+      await api.post("/kpis", null, {
+        params: {
+          action_name: selectedKpiAction,
+          kpi_ms: numericKpi,
+        },
+      });
+
+      setSuccessMessage("KPI saved successfully.");
+      await reloadReportsAfterKpiSave();
+    } catch (error) {
+      console.error(error);
+      setErrorMessage("Could not save KPI. Please check the backend terminal.");
+    } finally {
+      setSavingKpi(false);
+    }
+  };
+
+  const getNumber = (value) => {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : 0;
+  };
+
+  const formatNumber = (value, decimals = 2) => {
+    const numberValue = getNumber(value);
+    return numberValue.toFixed(decimals);
+  };
+
+  const getActionStatus = (row) => {
+    return row.Status || "NO KPI";
+  };
+
+  const getActionColor = (row) => {
+    const status = getActionStatus(row);
+
+    if (status === "PASS") {
+      return "success";
+    }
+
+    if (status === "FAIL") {
+      return "error";
+    }
+
+    return "warning";
+  };
+
+  const getGrowthValue = (row) => {
+    return (
+      row["Growth %"] ??
+      row.GrowthPercent ??
+      row.Growth_Percent ??
+      row.growth_percent ??
+      0
+    );
+  };
+
+  const getProcessValue = (row) => {
+    return row.Process ?? row.ProcessName ?? row.process ?? "-";
+  };
+
+  const getCounterValue = (row) => {
+    return row.Counter ?? row.CounterName ?? row.counter ?? "-";
+  };
+
+  const getMemoryLeakStatus = (row) => {
+    return row.Status ?? row.status ?? "-";
+  };
+
+  const availableActions = useMemo(() => {
+    return [
+      "ALL",
+      ...new Set(actions.map((item) => item.Action).filter(Boolean)),
+    ];
+  }, [actions]);
+
+  const availableHardware = useMemo(() => {
+    return [
+      "ALL",
+      ...new Set(actions.map((item) => item.Hardware).filter(Boolean)),
+    ];
+  }, [actions]);
+
+  const kpiActionOptions = useMemo(() => {
+    const actionsFromReport = actions
+      .map((item) => item.Action)
+      .filter(Boolean);
+
+    const actionsFromKpis = kpis
+      .map((item) => item.Action)
+      .filter(Boolean);
+
+    return [...new Set([...actionsFromReport, ...actionsFromKpis])].sort();
+  }, [actions, kpis]);
+
+  const filteredActions = useMemo(() => {
+    return actions.filter((item) => {
+      const actionMatch =
+        selectedAction === "ALL" || item.Action === selectedAction;
+
+      const hardwareMatch =
+        selectedHardware === "ALL" || item.Hardware === selectedHardware;
+
+      return actionMatch && hardwareMatch;
+    });
+  }, [actions, selectedAction, selectedHardware]);
+
+  const groupedActions = useMemo(() => {
+    return filteredActions.reduce((groups, item) => {
+      const action = item.Action || "Unknown Action";
 
       if (!groups[action]) {
         groups[action] = [];
@@ -116,445 +364,779 @@ function Dashboard() {
 
       return groups;
     }, {});
+  }, [filteredActions]);
 
-  const totalPass = actions.filter(
-    (item) => item.Average <= item.KPI
-  ).length;
+  const totalPass = useMemo(() => {
+    return actions.filter((item) => item.Status === "PASS").length;
+  }, [actions]);
 
-  const totalFail = actions.filter(
-    (item) => item.Average > item.KPI
-  ).length;
+  const totalFail = useMemo(() => {
+    return actions.filter((item) => item.Status === "FAIL").length;
+  }, [actions]);
 
-  const successRate =
-    actions.length > 0
-      ? (
-          (totalPass / actions.length) *
-          100
-        ).toFixed(2)
-      : 0;
+  const totalNoKpi = useMemo(() => {
+    return actions.filter((item) => item.Status === "NO KPI").length;
+  }, [actions]);
 
-  return (
-    <Container maxWidth="xl">
-      <Typography
-        variant="h2"
-        sx={{
-          mt: 3,
-          mb: 4,
-          fontWeight: "bold",
-          textAlign: "center",
-        }}
-      >
-        Performance Analyzer
-      </Typography>
+  const successRate = useMemo(() => {
+    const totalValidated = totalPass + totalFail;
 
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h5">
-                Total Actions
-              </Typography>
+    if (totalValidated === 0) {
+      return 0;
+    }
 
-              <Typography variant="h3">
-                {data.summary.total_actions}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+    return ((totalPass / totalValidated) * 100).toFixed(2);
+  }, [totalPass, totalFail]);
 
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h5">
-                Average Response
-              </Typography>
+  const totalActions =
+    data?.summary?.total_actions ??
+    actions.reduce(
+      (total, item) => total + getNumber(item["Total Quantity"]),
+      0
+    );
 
-              <Typography variant="h3">
-                {data.summary.average_response_time.toFixed(
-                  2
-                )}{" "}
-                ms
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+  const averageResponse =
+    data?.summary?.average_response_time ??
+    (actions.length > 0
+      ? actions.reduce((sum, item) => sum + getNumber(item.Average), 0) /
+        actions.length
+      : 0);
 
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h5">
-                Max Response
-              </Typography>
+  const maxResponse =
+    data?.summary?.max_response_time ??
+    Math.max(...actions.map((item) => getNumber(item.Max)), 0);
 
-              <Typography variant="h3">
-                {data.summary.max_response_time.toFixed(
-                  2
-                )}{" "}
-                ms
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+  const criticalLeaks = memoryLeaks.filter((item) => {
+    const status = String(getMemoryLeakStatus(item)).toUpperCase();
 
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h5">
-                PASS Actions
-              </Typography>
+    return (
+      status.includes("FAIL") ||
+      status.includes("POSSIBLE") ||
+      status.includes("LEAK")
+    );
+  }).length;
 
-              <Typography
-                variant="h3"
-                color="success.main"
-              >
-                {totalPass}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+  const handleKpiActionChange = (actionName) => {
+    setSelectedKpiAction(actionName);
 
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h5">
-                FAIL Actions
-              </Typography>
+    const existingKpi = kpis.find((item) => item.Action === actionName);
 
-              <Typography
-                variant="h3"
-                color="error.main"
-              >
-                {totalFail}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+    if (existingKpi) {
+      setKpiValue(existingKpi.KPI);
+    } else {
+      setKpiValue("");
+    }
+  };
 
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h5">
-                Success Rate
-              </Typography>
-
-              <Typography
-                variant="h3"
-                color="primary"
-              >
-                {successRate}%
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      <Paper sx={{ mt: 5, p: 3 }}>
-        <Typography
-          variant="h5"
-          sx={{ mb: 2 }}
-        >
-          Filters
-        </Typography>
-
-        <FormControl sx={{ minWidth: 250 }}>
-          <InputLabel>Action</InputLabel>
-
-          <Select
-            value={selectedAction}
-            label="Action"
-            onChange={(e) =>
-              setSelectedAction(
-                e.target.value
-              )
-            }
-          >
-            {availableActions.map((action) => (
-              <MenuItem
-                key={action}
-                value={action}
-              >
-                {action}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        <FormControl
+  if (loading) {
+    return (
+      <Container maxWidth="xl">
+        <Box
           sx={{
-            minWidth: 250,
-            ml: 2,
+            minHeight: "70vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexDirection: "column",
+            gap: 2,
           }}
         >
-          <InputLabel>
-            Hardware
-          </InputLabel>
+          <CircularProgress size={56} />
 
-          <Select
-            value={selectedHardware}
-            label="Hardware"
-            onChange={(e) =>
-              setSelectedHardware(
-                e.target.value
-              )
-            }
-          >
-            {availableHardware.map(
-              (hardware) => (
-                <MenuItem
-                  key={hardware}
-                  value={hardware}
-                >
-                  {hardware}
-                </MenuItem>
-              )
-            )}
-          </Select>
-        </FormControl>
-      </Paper>
+          <Typography variant="h5" fontWeight="bold">
+            Loading Performance Analyzer...
+          </Typography>
 
-      {Object.entries(groupedActions).map(
-        ([actionName, actionRows]) => (
-          <Paper
-            key={actionName}
-            sx={{ mt: 5, p: 3 }}
+          <Typography color="text.secondary">
+            Collecting actions, counters, KPIs and memory analysis data.
+          </Typography>
+        </Box>
+      </Container>
+    );
+  }
+
+  return (
+    <Box sx={{ backgroundColor: "#f4f6f8", minHeight: "100vh", py: 4 }}>
+      <Container maxWidth="xl">
+        <Paper
+          elevation={0}
+          sx={{
+            p: 4,
+            mb: 4,
+            borderRadius: 4,
+            background:
+              "linear-gradient(135deg, #0d47a1 0%, #1976d2 45%, #42a5f5 100%)",
+            color: "white",
+          }}
+        >
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            justifyContent="space-between"
+            alignItems={{ xs: "flex-start", md: "center" }}
+            spacing={2}
           >
-            <Typography
-              variant="h4"
+            <Box>
+              <Typography variant="h3" fontWeight="bold">
+                Performance Analyzer
+              </Typography>
+
+              <Typography sx={{ mt: 1, opacity: 0.9 }}>
+                Executive performance dashboard for load tests, counters, KPIs
+                and memory leak indicators.
+              </Typography>
+            </Box>
+
+            <Button
+              variant="contained"
+              color="inherit"
+              startIcon={<RefreshIcon />}
+              onClick={loadAllData}
               sx={{
-                mb: 3,
-                color: "#1976d2",
+                color: "#0d47a1",
+                fontWeight: "bold",
+                borderRadius: 3,
               }}
             >
-              Action: {actionName}
-            </Typography>
+              Refresh
+            </Button>
+          </Stack>
+        </Paper>
 
-            <TableContainer>
-              <Table>
+        {errorMessage && (
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            {errorMessage}
+          </Alert>
+        )}
+
+        <Snackbar
+          open={Boolean(successMessage)}
+          autoHideDuration={3000}
+          onClose={() => setSuccessMessage("")}
+        >
+          <Alert
+            severity="success"
+            variant="filled"
+            onClose={() => setSuccessMessage("")}
+          >
+            {successMessage}
+          </Alert>
+        </Snackbar>
+
+        <Grid container spacing={3}>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <Card sx={{ borderRadius: 4, height: "100%" }}>
+              <CardContent>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <AssessmentIcon color="primary" />
+
+                  <Typography color="text.secondary" fontWeight="bold">
+                    Total Actions
+                  </Typography>
+                </Stack>
+
+                <Typography variant="h3" fontWeight="bold" sx={{ mt: 2 }}>
+                  {totalActions}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={2.4}>
+            <Card sx={{ borderRadius: 4, height: "100%" }}>
+              <CardContent>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <SpeedIcon color="primary" />
+
+                  <Typography color="text.secondary" fontWeight="bold">
+                    Avg Response
+                  </Typography>
+                </Stack>
+
+                <Typography variant="h3" fontWeight="bold" sx={{ mt: 2 }}>
+                  {formatNumber(averageResponse)}
+                </Typography>
+
+                <Typography color="text.secondary">ms</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={2.4}>
+            <Card sx={{ borderRadius: 4, height: "100%" }}>
+              <CardContent>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <SpeedIcon color="warning" />
+
+                  <Typography color="text.secondary" fontWeight="bold">
+                    Max Response
+                  </Typography>
+                </Stack>
+
+                <Typography variant="h3" fontWeight="bold" sx={{ mt: 2 }}>
+                  {formatNumber(maxResponse)}
+                </Typography>
+
+                <Typography color="text.secondary">ms</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={2.4}>
+            <Card sx={{ borderRadius: 4, height: "100%" }}>
+              <CardContent>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <CheckCircleIcon color="success" />
+
+                  <Typography color="text.secondary" fontWeight="bold">
+                    Success Rate
+                  </Typography>
+                </Stack>
+
+                <Typography
+                  variant="h3"
+                  fontWeight="bold"
+                  color="success.main"
+                  sx={{ mt: 2 }}
+                >
+                  {successRate}%
+                </Typography>
+
+                <Typography color="text.secondary">
+                  {totalPass} PASS / {totalFail} FAIL / {totalNoKpi} NO KPI
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} sm={6} md={2.4}>
+            <Card sx={{ borderRadius: 4, height: "100%" }}>
+              <CardContent>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <MemoryIcon color={criticalLeaks > 0 ? "error" : "success"} />
+
+                  <Typography color="text.secondary" fontWeight="bold">
+                    Memory Alerts
+                  </Typography>
+                </Stack>
+
+                <Typography
+                  variant="h3"
+                  fontWeight="bold"
+                  color={criticalLeaks > 0 ? "error.main" : "success.main"}
+                  sx={{ mt: 2 }}
+                >
+                  {criticalLeaks}
+                </Typography>
+
+                <Typography color="text.secondary">
+                  Possible memory leak indicators
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+
+        <RunUploadPanel
+          selectedRunId={selectedRunId}
+          onRunChange={setSelectedRunId}
+          onRunDataChanged={loadRunData}
+        />
+
+        <UploadFilesPanel onUploadSuccess={loadAllData} />
+
+        <Paper sx={{ mt: 4, p: 3, borderRadius: 4 }}>
+          <Typography variant="h4" fontWeight="bold">
+            KPI Management
+          </Typography>
+
+          <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
+            Register or update the KPI in milliseconds. The PASS/FAIL result is
+            calculated using the 90th Percentil value.
+          </Typography>
+
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            spacing={2}
+            alignItems={{ xs: "stretch", md: "center" }}
+            sx={{ mb: 3 }}
+          >
+            <FormControl sx={{ minWidth: 280 }}>
+              <InputLabel>Action</InputLabel>
+
+              <Select
+                value={selectedKpiAction}
+                label="Action"
+                onChange={(event) => handleKpiActionChange(event.target.value)}
+              >
+                {kpiActionOptions.map((action) => (
+                  <MenuItem key={action} value={action}>
+                    {action}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <TextField
+              label="KPI (ms)"
+              type="number"
+              value={kpiValue}
+              onChange={(event) => setKpiValue(event.target.value)}
+              sx={{ minWidth: 200 }}
+              inputProps={{
+                min: 1,
+              }}
+            />
+
+            <Button
+              variant="contained"
+              startIcon={<SaveIcon />}
+              onClick={saveKpi}
+              disabled={savingKpi}
+              sx={{
+                height: 56,
+                borderRadius: 3,
+                fontWeight: "bold",
+              }}
+            >
+              {savingKpi ? "Saving..." : "Save KPI"}
+            </Button>
+          </Stack>
+
+          <Divider sx={{ mb: 3 }} />
+
+          <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
+            Registered KPIs
+          </Typography>
+
+          {kpis.length === 0 ? (
+            <Alert severity="info">No KPI registered yet.</Alert>
+          ) : (
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
                 <TableHead>
-                  <TableRow>
+                  <TableRow sx={{ backgroundColor: "#eef3f8" }}>
                     <TableCell>
-                      Hardware
+                      <strong>Action</strong>
                     </TableCell>
 
-                    <TableCell>
-                      Average
-                    </TableCell>
-
-                    <TableCell>P90</TableCell>
-
-                    <TableCell>KPI</TableCell>
-
-                    <TableCell>
-                      Status
+                    <TableCell align="right">
+                      <strong>KPI (ms)</strong>
                     </TableCell>
                   </TableRow>
                 </TableHead>
 
                 <TableBody>
-                  {actionRows.map(
-                    (row, index) => (
-                      <TableRow key={index}>
-                        <TableCell>
-                          {row.Hardware}
-                        </TableCell>
+                  {kpis.map((row) => (
+                    <TableRow key={row.Action} hover>
+                      <TableCell>{row.Action}</TableCell>
 
-                        <TableCell>
-                          {row.Average}
-                        </TableCell>
-
-                        <TableCell>
-                          {row.P90}
-                        </TableCell>
-
-                        <TableCell>
-                          {row.KPI}
-                        </TableCell>
-
-                        <TableCell>
-                          <span
-                            style={{
-                              color:
-                                row.Average <=
-                                row.KPI
-                                  ? "green"
-                                  : "red",
-                              fontWeight:
-                                "bold",
-                            }}
-                          >
-                            {row.Average <=
-                            row.KPI
-                              ? "PASS ✅"
-                              : "FAIL 🔴"}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  )}
+                      <TableCell align="right">
+                        {formatNumber(row.KPI, 0)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </TableContainer>
-          </Paper>
-        )
-      )}
+          )}
+        </Paper>
 
-      <Paper sx={{ mt: 5, p: 3 }}>
-        <Typography
-          variant="h4"
-          sx={{ mb: 3, textAlign: "center" }}
-        >
-          Memory Leak Analysis
-        </Typography>
+        <Paper sx={{ mt: 4, p: 3, borderRadius: 4 }}>
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            justifyContent="space-between"
+            alignItems={{ xs: "flex-start", md: "center" }}
+            spacing={2}
+          >
+            <Box>
+              <Typography variant="h5" fontWeight="bold">
+                Filters
+              </Typography>
 
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Process</TableCell>
-                <TableCell>Counter</TableCell>
-                <TableCell>Growth %</TableCell>
-                <TableCell>Status</TableCell>
-              </TableRow>
-            </TableHead>
+              <Typography color="text.secondary">
+                Filter the action report by Action and Hardware.
+              </Typography>
+            </Box>
 
-            <TableBody>
-              {memoryLeaks.map(
-                (row, index) => (
-                  <TableRow key={index}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <FormControl sx={{ minWidth: 260 }}>
+                <InputLabel>Action</InputLabel>
+
+                <Select
+                  value={selectedAction}
+                  label="Action"
+                  onChange={(event) => setSelectedAction(event.target.value)}
+                >
+                  {availableActions.map((action) => (
+                    <MenuItem key={action} value={action}>
+                      {action}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl sx={{ minWidth: 260 }}>
+                <InputLabel>Hardware</InputLabel>
+
+                <Select
+                  value={selectedHardware}
+                  label="Hardware"
+                  onChange={(event) => setSelectedHardware(event.target.value)}
+                >
+                  {availableHardware.map((hardware) => (
+                    <MenuItem key={hardware} value={hardware}>
+                      {hardware}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Stack>
+          </Stack>
+        </Paper>
+
+        <Paper sx={{ mt: 4, p: 3, borderRadius: 4 }}>
+          <Typography variant="h4" fontWeight="bold">
+            Action Performance Report
+          </Typography>
+
+          <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
+            Results grouped by Action and compared against KPI using the 90th
+            Percentil value.
+          </Typography>
+
+          <Divider sx={{ mb: 3 }} />
+
+          {Object.keys(groupedActions).length === 0 && (
+            <Alert severity="info">
+              No action data available for the selected filters.
+            </Alert>
+          )}
+
+          {Object.entries(groupedActions).map(([actionName, actionRows]) => (
+            <Box key={actionName} sx={{ mb: 5 }}>
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                justifyContent="space-between"
+                alignItems={{ xs: "flex-start", md: "center" }}
+                spacing={1}
+                sx={{ mb: 2 }}
+              >
+                <Typography variant="h5" fontWeight="bold" color="primary">
+                  {actionName}
+                </Typography>
+
+                <Chip
+                  label={`${actionRows.length} hardware result(s)`}
+                  color="primary"
+                  variant="outlined"
+                />
+              </Stack>
+
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ backgroundColor: "#eef3f8" }}>
+                      <TableCell>
+                        <strong>Hardware</strong>
+                      </TableCell>
+
+                      <TableCell align="right">
+                        <strong>KPI</strong>
+                      </TableCell>
+
+                      <TableCell align="right">
+                        <strong>Total Quantity</strong>
+                      </TableCell>
+
+                      <TableCell align="right">
+                        <strong>Above KPI</strong>
+                      </TableCell>
+
+                      <TableCell align="right">
+                        <strong>Min (ms)</strong>
+                      </TableCell>
+
+                      <TableCell align="right">
+                        <strong>Max (ms)</strong>
+                      </TableCell>
+
+                      <TableCell align="right">
+                        <strong>Average (ms)</strong>
+                      </TableCell>
+
+                      <TableCell align="right">
+                        <strong>Std Deviation (ms)</strong>
+                      </TableCell>
+
+                      <TableCell align="right">
+                        <strong>50th Percentil (ms)</strong>
+                      </TableCell>
+
+                      <TableCell align="right">
+                        <strong>90th Percentil (ms)</strong>
+                      </TableCell>
+
+                      <TableCell>
+                        <strong>Status</strong>
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+
+                  <TableBody>
+                    {actionRows.map((row, index) => {
+                      const status = getActionStatus(row);
+
+                      return (
+                        <TableRow key={`${row.Hardware}-${index}`} hover>
+                          <TableCell>{row.Hardware}</TableCell>
+
+                          <TableCell align="right">
+                            {formatNumber(row.KPI, 0)}
+                          </TableCell>
+
+                          <TableCell align="right">
+                            {row["Total Quantity"] ?? "-"}
+                          </TableCell>
+
+                          <TableCell align="right">
+                            {row["Above KPI"] ?? "-"}
+                          </TableCell>
+
+                          <TableCell align="right">
+                            {formatNumber(row.Min)}
+                          </TableCell>
+
+                          <TableCell align="right">
+                            {formatNumber(row.Max)}
+                          </TableCell>
+
+                          <TableCell align="right">
+                            {formatNumber(row.Average)}
+                          </TableCell>
+
+                          <TableCell align="right">
+                            {formatNumber(row["Std Deviation"])}
+                          </TableCell>
+
+                          <TableCell align="right">
+                            {formatNumber(row["50th Percentil"])}
+                          </TableCell>
+
+                          <TableCell align="right">
+                            {formatNumber(row["90th Percentil"])}
+                          </TableCell>
+
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              color={getActionColor(row)}
+                              label={status}
+                              icon={
+                                status === "PASS" ? (
+                                  <CheckCircleIcon />
+                                ) : status === "FAIL" ? (
+                                  <ErrorIcon />
+                                ) : undefined
+                              }
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          ))}
+        </Paper>
+
+        <Paper sx={{ mt: 4, p: 3, borderRadius: 4 }}>
+          <Typography variant="h4" fontWeight="bold">
+            Memory Leak Analysis
+          </Typography>
+
+          <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
+            Possible memory growth indicators detected from counters.
+          </Typography>
+
+          {memoryLeaks.length === 0 ? (
+            <Alert severity="success">
+              No possible memory leak was detected.
+            </Alert>
+          ) : (
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ backgroundColor: "#eef3f8" }}>
                     <TableCell>
-                      {row.Process}
+                      <strong>Hardware</strong>
                     </TableCell>
 
                     <TableCell>
-                      {row.Counter}
+                      <strong>Process</strong>
                     </TableCell>
 
                     <TableCell>
-                      {
-                        row["Growth %"]
-                      }
+                      <strong>Counter</strong>
+                    </TableCell>
+
+                    <TableCell align="right">
+                      <strong>Growth %</strong>
                     </TableCell>
 
                     <TableCell>
-                      <span
-                        style={{
-                          color:
-                            row.Status ===
-                            "POSSIBLE_MEMORY_LEAK"
-                              ? "red"
-                              : "green",
-                          fontWeight:
-                            "bold",
-                        }}
-                      >
-                        {row.Status}
-                      </span>
+                      <strong>Severity</strong>
+                    </TableCell>
+
+                    <TableCell>
+                      <strong>Status</strong>
                     </TableCell>
                   </TableRow>
-                )
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
+                </TableHead>
 
-      <Paper sx={{ mt: 5, p: 3 }}>
-        <Typography
-          variant="h4"
-          sx={{ mb: 3, textAlign: "center" }}
-        >
-          Resource Consumption Report
-        </Typography>
+                <TableBody>
+                  {memoryLeaks.map((row, index) => {
+                    const status = getMemoryLeakStatus(row);
 
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Process</TableCell>
-                <TableCell>Counter</TableCell>
-                <TableCell>Average</TableCell>
-                <TableCell>Max</TableCell>
-                <TableCell>Growth %</TableCell>
-                <TableCell>Status</TableCell>
-              </TableRow>
-            </TableHead>
+                    const isProblem =
+                      String(status).toUpperCase().includes("FAIL") ||
+                      String(status).toUpperCase().includes("POSSIBLE") ||
+                      String(status).toUpperCase().includes("LEAK");
 
-            <TableBody>
-              {counters
-                .slice(0, 25)
-                .map((row, index) => (
-                  <TableRow key={index}>
+                    return (
+                      <TableRow key={index} hover>
+                        <TableCell>{row.Hardware ?? "-"}</TableCell>
+
+                        <TableCell>{getProcessValue(row)}</TableCell>
+
+                        <TableCell>{getCounterValue(row)}</TableCell>
+
+                        <TableCell align="right">
+                          {formatNumber(getGrowthValue(row))}%
+                        </TableCell>
+
+                        <TableCell>{row.Severity ?? "-"}</TableCell>
+
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            color={isProblem ? "error" : "success"}
+                            label={status}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Paper>
+
+        <Paper sx={{ mt: 4, p: 3, borderRadius: 4 }}>
+          <Typography variant="h4" fontWeight="bold">
+            Resource Consumption Report
+          </Typography>
+
+          <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
+            First 25 resource counter records.
+          </Typography>
+
+          {counters.length === 0 ? (
+            <Alert severity="info">No counters data available.</Alert>
+          ) : (
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ backgroundColor: "#eef3f8" }}>
                     <TableCell>
-                      {row.Process}
+                      <strong>Process</strong>
                     </TableCell>
 
                     <TableCell>
-                      {row.Counter}
+                      <strong>Counter</strong>
+                    </TableCell>
+
+                    <TableCell align="right">
+                      <strong>Average</strong>
+                    </TableCell>
+
+                    <TableCell align="right">
+                      <strong>Max</strong>
+                    </TableCell>
+
+                    <TableCell align="right">
+                      <strong>Growth %</strong>
                     </TableCell>
 
                     <TableCell>
-                      {row.Average}
-                    </TableCell>
-
-                    <TableCell>
-                      {row.Max}
-                    </TableCell>
-
-                    <TableCell>
-                      {
-                        row["Growth %"]
-                      }
-                    </TableCell>
-
-                    <TableCell>
-                      <span
-                        style={{
-                          color:
-                            row[
-                              "Growth %"
-                            ] > 20
-                              ? "red"
-                              : "green",
-                          fontWeight:
-                            "bold",
-                        }}
-                      >
-                        {row[
-                          "Growth %"
-                        ] > 20
-                          ? "ATTENTION 🔴"
-                          : "NORMAL 🟢"}
-                      </span>
+                      <strong>Status</strong>
                     </TableCell>
                   </TableRow>
-                ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
+                </TableHead>
 
-      <Paper sx={{ mt: 5, p: 3 }}>
-        <Typography
-          variant="h4"
-          sx={{ mb: 3, textAlign: "center" }}
-        >
-          Action Response Trend
-        </Typography>
+                <TableBody>
+                  {counters.slice(0, 25).map((row, index) => {
+                    const growth = getNumber(getGrowthValue(row));
+                    const hasAttention = growth > 20;
 
-        <ActionTrendChart />
-      </Paper>
+                    return (
+                      <TableRow key={index} hover>
+                        <TableCell>{getProcessValue(row)}</TableCell>
 
-      <Paper sx={{ mt: 5, p: 3, mb: 5 }}>
-        <Typography
-          variant="h4"
-          sx={{ mb: 3, textAlign: "center" }}
-        >
-          Memory Consumption Trend
-        </Typography>
+                        <TableCell>{getCounterValue(row)}</TableCell>
 
-        <MemoryTrendChart />
-      </Paper>
-    </Container>
+                        <TableCell align="right">
+                          {formatNumber(row.Average)}
+                        </TableCell>
+
+                        <TableCell align="right">
+                          {formatNumber(row.Max)}
+                        </TableCell>
+
+                        <TableCell align="right">
+                          {formatNumber(growth)}%
+                        </TableCell>
+
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            color={hasAttention ? "error" : "success"}
+                            label={hasAttention ? "ATTENTION" : "NORMAL"}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Paper>
+
+        <Grid container spacing={3} sx={{ mt: 1, mb: 5 }}>
+          <Grid item xs={12} lg={6}>
+            <Paper sx={{ p: 3, borderRadius: 4, height: "100%" }}>
+              <Typography variant="h4" fontWeight="bold" sx={{ mb: 3 }}>
+                Action Response Trend
+              </Typography>
+
+              <ActionTrendChart />
+            </Paper>
+          </Grid>
+
+          <Grid item xs={12} lg={6}>
+            <Paper sx={{ p: 3, borderRadius: 4, height: "100%" }}>
+              <Typography variant="h4" fontWeight="bold" sx={{ mb: 3 }}>
+                Memory Consumption Trend
+              </Typography>
+
+              <MemoryTrendChart />
+            </Paper>
+          </Grid>
+        </Grid>
+      </Container>
+    </Box>
   );
 }
 
