@@ -21,7 +21,7 @@ import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import RefreshIcon from "@mui/icons-material/Refresh";
 
 function RunUploadPanel({
-  selectedRunId,
+  runId,
   onRunChange,
   onRunDataChanged,
 }) {
@@ -43,10 +43,10 @@ function RunUploadPanel({
   }, []);
 
   useEffect(() => {
-    if (selectedRunId) {
-      loadRunFiles(selectedRunId);
+    if (runId) {
+      loadRunFiles(runId);
     }
-  }, [selectedRunId]);
+  }, [runId]);
 
   const loadRuns = async () => {
     try {
@@ -98,11 +98,29 @@ function RunUploadPanel({
     }
   };
 
+const ensureRunExists = async () => {
+  if (runId) {
+    return runId;
+  }
+
+  const response = await api.post("/runs/create");
+  const newRunId = response.data.run_id;
+
+  setMessage(`Run created automatically: ${newRunId}`);
+
+  await loadRuns();
+
+  if (onRunChange) {
+    onRunChange(newRunId);
+  }
+
+  await loadRunFiles(newRunId);
+
+  return newRunId;
+};
+
   const uploadLoadFiles = async () => {
-    if (!selectedRunId) {
-      setErrorMessage("Please select or create a run first.");
-      return;
-    }
+    const runId = await ensureRunExists();
 
     if (!loadFiles || loadFiles.length === 0) {
       setErrorMessage("Please select at least one Load CSV file.");
@@ -119,7 +137,7 @@ function RunUploadPanel({
         formData.append("file", file);
 
         await api.post(
-          `/runs/${selectedRunId}/upload/load-file`,
+          `/runs/${runId}/upload/load-file`,
           formData,
           {
             headers: {
@@ -132,10 +150,10 @@ function RunUploadPanel({
       setMessage("Load files uploaded successfully.");
       setLoadFiles([]);
 
-      await loadRunFiles(selectedRunId);
+      await loadRunFiles(runId);
 
       if (onRunDataChanged) {
-        await onRunDataChanged(selectedRunId);
+        await onRunDataChanged(runId);
       }
     } catch (error) {
       console.error(error);
@@ -146,7 +164,7 @@ function RunUploadPanel({
   };
 
   const uploadCountersFiles = async () => {
-    if (!selectedRunId) {
+    if (!runId) {
       setErrorMessage("Please select or create a run first.");
       return;
     }
@@ -166,7 +184,7 @@ function RunUploadPanel({
         formData.append("file", file);
 
         await api.post(
-          `/runs/${selectedRunId}/upload/counters-file`,
+          `/runs/${runId}/upload/counters-file`,
           formData,
           {
             headers: {
@@ -179,10 +197,10 @@ function RunUploadPanel({
       setMessage("Counters files uploaded successfully.");
       setCountersFiles([]);
 
-      await loadRunFiles(selectedRunId);
+      await loadRunFiles(runId);
 
       if (onRunDataChanged) {
-        await onRunDataChanged(selectedRunId);
+        await onRunDataChanged(runId);
       }
     } catch (error) {
       console.error(error);
@@ -247,7 +265,7 @@ function RunUploadPanel({
           <InputLabel>Selected Run</InputLabel>
 
           <Select
-            value={selectedRunId || ""}
+            value={runId || ""}
             label="Selected Run"
             onChange={(event) => handleRunChange(event.target.value)}
           >
