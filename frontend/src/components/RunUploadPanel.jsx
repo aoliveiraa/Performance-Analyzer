@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
 import api from "../services/api";
 
 import {
@@ -26,9 +27,11 @@ function RunUploadPanel({
   onRunDataChanged,
 }) {
   const [runs, setRuns] = useState([]);
+  const [runsFilesMap, setRunsFilesMap] = useState({});
+  const [selectedRunId, setSelectedRunId] = useState(runId || "");
+
   const [loadFiles, setLoadFiles] = useState([]);
   const [countersFiles, setCountersFiles] = useState([]);
-
   const [runFiles, setRunFiles] = useState(null);
 
   const [creatingRun, setCreatingRun] = useState(false);
@@ -43,36 +46,264 @@ function RunUploadPanel({
   }, []);
 
   useEffect(() => {
-    if (runId) {
+    if (runId && runId !== selectedRunId) {
+      setSelectedRunId(runId);
       loadRunFiles(runId);
     }
   }, [runId]);
 
-  const loadRuns = async () => {
+  useEffect(() => {
+    if (selectedRunId) {
+      loadRunFiles(selectedRunId);
+    }
+  }, [selectedRunId]);
+
+  function normalizeRunId(run) {
+    if (typeof run === "string") {
+      return run;
+    }
+
+    return run?.run_id || run?.id || run?.name || "";
+  }
+
+  function extractRunNumber(currentRunId) {
+    const match = String(currentRunId || "").match(/(\d+)/);
+
+    if (!match) {
+      return 0;
+    }
+
+    return Number(match[1]);
+  }
+
+  function sortRunsByNewest(runsData) {
+    return [...runsData].sort((a, b) => {
+      const runA = normalizeRunId(a);
+      const runB = normalizeRunId(b);
+
+      return extractRunNumber(runB) - extractRunNumber(runA);
+    });
+  }
+
+  function formatDateFromRaw(dateRaw) {
+    if (!dateRaw) {
+      return "";
+    }
+
+    const cleanDate = String(dateRaw).trim();
+
+    if (cleanDate.length !== 8 || !/^\d+$/.test(cleanDate)) {
+      return cleanDate;
+    }
+
+    const year = cleanDate.slice(0, 4);
+    const month = cleanDate.slice(4, 6);
+    const day = cleanDate.slice(6, 8);
+
+    return `${Number(month)}/${Number(day)}/${year}`;
+  }
+
+  function parseMetadataFromFilename(filename) {
+    if (!filename) {
+      return {};
+    }
+
+    const cleanFilename = filename.replace(/\.[^/.]+$/, "");
+    const parts = cleanFilename.split("_");
+
+    const version = parts[0]?.trim() || "";
+    const build = parts[1]?.trim() || "";
+    const suiteRaw = parts[2]?.trim() || "";
+    const environment = parts[3]?.trim() || "";
+    const dateRaw = parts[4]?.trim() || "";
+
+    const suite = suiteRaw.split(" - ")[0]?.trim() || suiteRaw;
+
+    return {
+      version,
+      build,
+      suite,
+      environment,
+      date_raw: dateRaw,
+      date: formatDateFromRaw(dateRaw),
+      source_file: filename,
+    };
+  }
+
+  function getMetadataFromFiles(files) {
+    const backendMetadata = files?.metadata || {};
+
+    if (
+      backendMetadata.version ||
+      backendMetadata.build ||
+      backendMetadata.suite ||
+      backendMetadata.environment ||
+      backendMetadata.date
+    ) {
+      return backendMetadata;
+    }
+
+    const firstLoadFile = files?.load_files?.[0];
+    const firstCountersFile = files?.counters_files?.[0];
+    const firstFile = firstLoadFile || firstCountersFile;
+
+    return parseMetadataFromFilename(firstFile);
+  }
+
+  function hasMetadata(metadata) {
+    return Boolean(
+      metadata?.version ||
+        metadata?.build ||
+        metadata?.suite ||
+        metadata?.environment ||
+        metadata?.date
+    );
+  }
+
+  const selectedFilesMetadata = useMemo(() => {
+    const firstSelectedLoadFile = loadFiles?.[0]?.name;
+    const firstSelectedCountersFile = countersFiles?.[0]?.name;
+
+    const firstSelectedFile =
+      firstSelectedLoadFile || firstSelectedCountersFile;
+
+    return parseMetadataFromFilename(firstSelectedFile);
+  }, [loadFiles, countersFiles]);
+
+  const selectedReportMetadata = useMemo(() => {
+    const metadataFromCurrentReport = getMetadataFromFiles(runFiles);
+
+    if (hasMetadata(metadataFromCurrentReport)) {
+      return metadataFromCurrentReport;
+    }
+
+    return selectedFilesMetadata;
+  }, [runFiles, selectedFilesMetadata]);
+
+  function buildReportLabel(run) {
+    const currentRunId = normalizeRunId(run);
+
+    if (!currentRunId) {
+      return "Select a report";
+    }
+
+    const files = runsFilesMap[currentRunId];
+    const metadata = getMetadataFromFiles(files);
+
+    if (hasMetadata(metadata)) {
+      return [
+        metadata.version,
+        metadata.build,
+        metadata.suite,
+        metadata.environment,
+        metadata.date,
+      ]
+        .filter(Boolean)
+        .join(" | ");
+    }
+
+    return `New Report (${currentRunId})`;
+  }
+
+  function addTemporaryRunToList(newRunId) {
+    setRuns((currentRuns) => {
+      const alreadyExists = currentRuns.some(
+        (run) => normalizeRunId(run) === newRunId
+      );
+
+      if (alreadyExists) {
+        return currentRuns;
+      }
+
+      return [
+        { id: newRunId },
+        ...currentRuns,
+      ];
+    });
+
+    setRunsFilesMap((current) => ({
+      ...current,
+      [newRunId]: {
+        run_id: newRunId,
+        load_files: [],
+        counters_files: [],
+        metadata: {},
+      },
+    }));
+  }
+
+  async function loadRuns() {
     try {
       const response = await api.get("/runs");
-      setRuns(response.data || []);
+      const runsData = response.data || [];
+      const orderedRuns = sortRunsByNewest(runsData);
+
+      setRuns(orderedRuns);
+
+      const filesMap = {};
+
+      for (const run of orderedRuns) {
+        const currentRunId = normalizeRunId(run);
+
+        if (!currentRunId) {
+          continue;
+        }
+
+        try {
+          const filesResponse = await api.get(
+            `/runs/${currentRunId}/files`
+          );
+
+          filesMap[currentRunId] = filesResponse.data;
+        } catch (error) {
+          console.error(
+            `Could not load files for ${currentRunId}`,
+            error
+          );
+
+          filesMap[currentRunId] = {
+            run_id: currentRunId,
+            load_files: [],
+            counters_files: [],
+            metadata: {},
+          };
+        }
+      }
+
+      setRunsFilesMap(filesMap);
     } catch (error) {
       console.error(error);
-      setErrorMessage("Could not load runs.");
+      setErrorMessage("Could not load reports.");
     }
-  };
+  }
 
-  const loadRunFiles = async (runId) => {
-    if (!runId) {
+  async function loadRunFiles(currentRunId) {
+    if (!currentRunId) {
       return;
     }
 
     try {
-      const response = await api.get(`/runs/${runId}/files`);
+      const response = await api.get(`/runs/${currentRunId}/files`);
+
       setRunFiles(response.data);
+
+      setRunsFilesMap((current) => ({
+        ...current,
+        [currentRunId]: response.data,
+      }));
     } catch (error) {
       console.error(error);
-      setRunFiles(null);
-    }
-  };
 
-  const createRun = async () => {
+      setRunFiles({
+        run_id: currentRunId,
+        load_files: [],
+        counters_files: [],
+        metadata: {},
+      });
+    }
+  }
+
+  async function createRun() {
     setCreatingRun(true);
     setMessage("");
     setErrorMessage("");
@@ -81,51 +312,81 @@ function RunUploadPanel({
       const response = await api.post("/runs/create");
       const newRunId = response.data.run_id;
 
-      setMessage(`Run created successfully: ${newRunId}`);
+      addTemporaryRunToList(newRunId);
 
-      await loadRuns();
+      setSelectedRunId(newRunId);
+
+      setRunFiles({
+        run_id: newRunId,
+        load_files: [],
+        counters_files: [],
+        metadata: {},
+      });
+
+      setLoadFiles([]);
+      setCountersFiles([]);
 
       if (onRunChange) {
         onRunChange(newRunId);
       }
 
+      setMessage(
+        "New report was prepared. Upload the first file to complete the report information."
+      );
+
+      await loadRuns();
       await loadRunFiles(newRunId);
     } catch (error) {
       console.error(error);
-      setErrorMessage("Could not create run.");
+      setErrorMessage("Could not prepare a new report.");
     } finally {
       setCreatingRun(false);
     }
-  };
-
-const ensureRunExists = async () => {
-  if (runId) {
-    return runId;
   }
 
-  const response = await api.post("/runs/create");
-  const newRunId = response.data.run_id;
+  async function ensureRunExists() {
+    if (selectedRunId) {
+      return selectedRunId;
+    }
 
-  setMessage(`Run created automatically: ${newRunId}`);
+    const response = await api.post("/runs/create");
+    const newRunId = response.data.run_id;
 
-  await loadRuns();
+    addTemporaryRunToList(newRunId);
 
-  if (onRunChange) {
-    onRunChange(newRunId);
+    setSelectedRunId(newRunId);
+
+    setRunFiles({
+      run_id: newRunId,
+      load_files: [],
+      counters_files: [],
+      metadata: {},
+    });
+
+    setLoadFiles([]);
+    setCountersFiles([]);
+
+    if (onRunChange) {
+      onRunChange(newRunId);
+    }
+
+    setMessage(
+      "New report was created automatically. Upload completed using this report."
+    );
+
+    await loadRuns();
+    await loadRunFiles(newRunId);
+
+    return newRunId;
   }
 
-  await loadRunFiles(newRunId);
-
-  return newRunId;
-};
-
-  const uploadLoadFiles = async () => {
-    const runId = await ensureRunExists();
-
+  async function uploadLoadFiles() {
     if (!loadFiles || loadFiles.length === 0) {
       setErrorMessage("Please select at least one Load CSV file.");
       return;
     }
+
+    const currentRunId = await ensureRunExists();
 
     setUploadingLoad(true);
     setMessage("");
@@ -134,10 +395,11 @@ const ensureRunExists = async () => {
     try {
       for (const file of loadFiles) {
         const formData = new FormData();
+
         formData.append("file", file);
 
         await api.post(
-          `/runs/${runId}/upload/load-file`,
+          `/runs/${currentRunId}/upload/load-file`,
           formData,
           {
             headers: {
@@ -150,10 +412,17 @@ const ensureRunExists = async () => {
       setMessage("Load files uploaded successfully.");
       setLoadFiles([]);
 
-      await loadRunFiles(runId);
+      await loadRunFiles(currentRunId);
+      await loadRuns();
+
+      setSelectedRunId(currentRunId);
+
+      if (onRunChange) {
+        onRunChange(currentRunId);
+      }
 
       if (onRunDataChanged) {
-        await onRunDataChanged(runId);
+        await onRunDataChanged(currentRunId);
       }
     } catch (error) {
       console.error(error);
@@ -161,18 +430,15 @@ const ensureRunExists = async () => {
     } finally {
       setUploadingLoad(false);
     }
-  };
+  }
 
-  const uploadCountersFiles = async () => {
-    if (!runId) {
-      setErrorMessage("Please select or create a run first.");
-      return;
-    }
-
+  async function uploadCountersFiles() {
     if (!countersFiles || countersFiles.length === 0) {
       setErrorMessage("Please select at least one Counters CSV file.");
       return;
     }
+
+    const currentRunId = await ensureRunExists();
 
     setUploadingCounters(true);
     setMessage("");
@@ -181,10 +447,11 @@ const ensureRunExists = async () => {
     try {
       for (const file of countersFiles) {
         const formData = new FormData();
+
         formData.append("file", file);
 
         await api.post(
-          `/runs/${runId}/upload/counters-file`,
+          `/runs/${currentRunId}/upload/counters-file`,
           formData,
           {
             headers: {
@@ -197,10 +464,17 @@ const ensureRunExists = async () => {
       setMessage("Counters files uploaded successfully.");
       setCountersFiles([]);
 
-      await loadRunFiles(runId);
+      await loadRunFiles(currentRunId);
+      await loadRuns();
+
+      setSelectedRunId(currentRunId);
+
+      if (onRunChange) {
+        onRunChange(currentRunId);
+      }
 
       if (onRunDataChanged) {
-        await onRunDataChanged(runId);
+        await onRunDataChanged(currentRunId);
       }
     } catch (error) {
       console.error(error);
@@ -208,29 +482,31 @@ const ensureRunExists = async () => {
     } finally {
       setUploadingCounters(false);
     }
-  };
+  }
 
-  const handleRunChange = async (runId) => {
+  async function handleRunChange(currentSelectedRunId) {
+    setSelectedRunId(currentSelectedRunId);
+
     if (onRunChange) {
-      onRunChange(runId);
+      onRunChange(currentSelectedRunId);
     }
 
-    await loadRunFiles(runId);
+    await loadRunFiles(currentSelectedRunId);
 
     if (onRunDataChanged) {
-      await onRunDataChanged(runId);
+      await onRunDataChanged(currentSelectedRunId);
     }
-  };
+  }
 
   return (
     <Paper sx={{ mt: 4, p: 3, borderRadius: 4 }}>
       <Typography variant="h4" fontWeight="bold">
-        Runs Management
+        Report Upload
       </Typography>
 
       <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
-        Create or select a test execution, then upload multiple Load and
-        Counters CSV files for that execution.
+        Create or select a report, then upload multiple Load and Counters CSV
+        files. The report information is generated from the uploaded file name.
       </Typography>
 
       {message && (
@@ -248,36 +524,57 @@ const ensureRunExists = async () => {
       <Stack
         direction={{ xs: "column", md: "row" }}
         spacing={2}
-        alignItems={{ xs: "stretch", md: "center" }}
-        sx={{ mb: 3 }}
+        sx={{
+          mb: 3,
+          alignItems: {
+            xs: "stretch",
+            md: "center",
+          },
+        }}
       >
         <Button
           variant="contained"
           startIcon={<AddCircleIcon />}
           onClick={createRun}
           disabled={creatingRun}
-          sx={{ borderRadius: 3, fontWeight: "bold", height: 56 }}
+          sx={{
+            borderRadius: 3,
+            fontWeight: "bold",
+            height: 56,
+          }}
         >
-          {creatingRun ? "Creating..." : "Create New Run"}
+          {creatingRun ? "Preparing..." : "Generate New Report"}
         </Button>
 
-        <FormControl sx={{ minWidth: 280 }}>
-          <InputLabel>Selected Run</InputLabel>
+        <FormControl sx={{ minWidth: 420, flex: 1 }}>
+          <InputLabel>Selected Report</InputLabel>
 
           <Select
-            value={runId || ""}
-            label="Selected Run"
+            value={selectedRunId || ""}
+            label="Selected Report"
             onChange={(event) => handleRunChange(event.target.value)}
+            renderValue={(selected) => {
+              const selectedRun = runs.find(
+                (run) => normalizeRunId(run) === selected
+              );
+
+              if (!selectedRun && selected) {
+                return `New Report (${selected})`;
+              }
+
+              if (!selectedRun) {
+                return "Select a report";
+              }
+
+              return buildReportLabel(selectedRun);
+            }}
           >
             {runs.map((run) => {
-              const runId =
-                typeof run === "string"
-                  ? run
-                  : run.run_id || run.id || run.name;
+              const currentRunId = normalizeRunId(run);
 
               return (
-                <MenuItem key={runId} value={runId}>
-                  {runId}
+                <MenuItem key={currentRunId} value={currentRunId}>
+                  {buildReportLabel(run)}
                 </MenuItem>
               );
             })}
@@ -288,11 +585,80 @@ const ensureRunExists = async () => {
           variant="outlined"
           startIcon={<RefreshIcon />}
           onClick={loadRuns}
-          sx={{ borderRadius: 3, fontWeight: "bold", height: 56 }}
+          sx={{
+            borderRadius: 3,
+            fontWeight: "bold",
+            height: 56,
+          }}
         >
-          Refresh Runs
+          Refresh Reports
         </Button>
       </Stack>
+
+      {hasMetadata(selectedReportMetadata) && (
+        <Paper
+          variant="outlined"
+          sx={{
+            p: 2,
+            mb: 3,
+            borderRadius: 3,
+            backgroundColor: "#fafafa",
+          }}
+        >
+          <Typography variant="h6" fontWeight="bold" sx={{ mb: 1 }}>
+            Report Information
+          </Typography>
+
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            spacing={1}
+            sx={{
+              flexWrap: "wrap",
+            }}
+          >
+            <Chip
+              label={`Version: ${selectedReportMetadata.version || "-"}`}
+              variant="outlined"
+              color="primary"
+            />
+
+            <Chip
+              label={`Build: ${selectedReportMetadata.build || "-"}`}
+              variant="outlined"
+              color="primary"
+            />
+
+            <Chip
+              label={`Suite: ${selectedReportMetadata.suite || "-"}`}
+              variant="outlined"
+              color="secondary"
+            />
+
+            <Chip
+              label={`Environment: ${
+                selectedReportMetadata.environment || "-"
+              }`}
+              variant="outlined"
+              color="secondary"
+            />
+
+            <Chip
+              label={`Date: ${selectedReportMetadata.date || "-"}`}
+              variant="outlined"
+            />
+          </Stack>
+
+          {selectedReportMetadata.source_file && (
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ mt: 1 }}
+            >
+              Source file: {selectedReportMetadata.source_file}
+            </Typography>
+          )}
+        </Paper>
+      )}
 
       <Divider sx={{ mb: 3 }} />
 
@@ -305,15 +671,24 @@ const ensureRunExists = async () => {
           <Stack
             direction={{ xs: "column", md: "row" }}
             spacing={2}
-            alignItems={{ xs: "stretch", md: "center" }}
+            sx={{
+              alignItems: {
+                xs: "stretch",
+                md: "center",
+              },
+            }}
           >
             <Button
               variant="outlined"
               component="label"
               startIcon={<CloudUploadIcon />}
-              sx={{ borderRadius: 3, fontWeight: "bold" }}
+              sx={{
+                borderRadius: 3,
+                fontWeight: "bold",
+              }}
             >
               Select Load CSVs
+
               <input
                 type="file"
                 hidden
@@ -337,23 +712,28 @@ const ensureRunExists = async () => {
               variant="contained"
               onClick={uploadLoadFiles}
               disabled={uploadingLoad}
-              sx={{ borderRadius: 3, fontWeight: "bold" }}
+              sx={{
+                borderRadius: 3,
+                fontWeight: "bold",
+              }}
             >
               {uploadingLoad ? "Uploading..." : "Upload Load Files"}
             </Button>
           </Stack>
         </Box>
 
-        <Box>
-          {loadFiles.map((file) => (
-            <Chip
-              key={file.name}
-              label={file.name}
-              sx={{ mr: 1, mb: 1 }}
-              variant="outlined"
-            />
-          ))}
-        </Box>
+        {loadFiles.length > 0 && (
+          <Box>
+            {loadFiles.map((file) => (
+              <Chip
+                key={file.name}
+                label={file.name}
+                sx={{ mr: 1, mb: 1 }}
+                variant="outlined"
+              />
+            ))}
+          </Box>
+        )}
 
         <Divider />
 
@@ -365,15 +745,24 @@ const ensureRunExists = async () => {
           <Stack
             direction={{ xs: "column", md: "row" }}
             spacing={2}
-            alignItems={{ xs: "stretch", md: "center" }}
+            sx={{
+              alignItems: {
+                xs: "stretch",
+                md: "center",
+              },
+            }}
           >
             <Button
               variant="outlined"
               component="label"
               startIcon={<CloudUploadIcon />}
-              sx={{ borderRadius: 3, fontWeight: "bold" }}
+              sx={{
+                borderRadius: 3,
+                fontWeight: "bold",
+              }}
             >
               Select Counters CSVs
+
               <input
                 type="file"
                 hidden
@@ -397,23 +786,28 @@ const ensureRunExists = async () => {
               variant="contained"
               onClick={uploadCountersFiles}
               disabled={uploadingCounters}
-              sx={{ borderRadius: 3, fontWeight: "bold" }}
+              sx={{
+                borderRadius: 3,
+                fontWeight: "bold",
+              }}
             >
               {uploadingCounters ? "Uploading..." : "Upload Counters Files"}
             </Button>
           </Stack>
         </Box>
 
-        <Box>
-          {countersFiles.map((file) => (
-            <Chip
-              key={file.name}
-              label={file.name}
-              sx={{ mr: 1, mb: 1 }}
-              variant="outlined"
-            />
-          ))}
-        </Box>
+        {countersFiles.length > 0 && (
+          <Box>
+            {countersFiles.map((file) => (
+              <Chip
+                key={file.name}
+                label={file.name}
+                sx={{ mr: 1, mb: 1 }}
+                variant="outlined"
+              />
+            ))}
+          </Box>
+        )}
       </Stack>
 
       {runFiles && (
@@ -421,7 +815,7 @@ const ensureRunExists = async () => {
           <Divider sx={{ my: 3 }} />
 
           <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
-            Files uploaded to {runFiles.run_id}
+            Files uploaded to selected report
           </Typography>
 
           <Typography fontWeight="bold">Load files:</Typography>
@@ -447,7 +841,8 @@ const ensureRunExists = async () => {
           <Typography fontWeight="bold">Counters files:</Typography>
 
           <Box sx={{ mt: 1 }}>
-            {runFiles.counters_files && runFiles.counters_files.length > 0 ? (
+            {runFiles.counters_files &&
+            runFiles.counters_files.length > 0 ? (
               runFiles.counters_files.map((file) => (
                 <Chip
                   key={file}

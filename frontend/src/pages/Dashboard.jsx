@@ -636,12 +636,11 @@ function Dashboard() {
           </Grid>
         </Grid>
 
-        <RunUploadPanel
-          selectedRunId={selectedRunId}
-          onRunChange={setSelectedRunId}
-          onRunDataChanged={loadRunData}
-        />
-
+      <RunUploadPanel
+        runId={selectedRunId}
+        onRunChange={setSelectedRunId}
+        onRunDataChanged={loadRunData}
+      />
         <UploadFilesPanel onUploadSuccess={loadAllData} />
 
         <Paper sx={{ mt: 4, p: 3, borderRadius: 4 }}>

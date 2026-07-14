@@ -1,8 +1,6 @@
 import { AppBar, Box, Button, Toolbar, Typography } from "@mui/material";
 import { Link, Route, Routes } from "react-router-dom";
-
 import Dashboard from "./pages/Dashboard";
-
 import ReportsHome from "./pages/ReportsHome";
 import ReportsList from "./pages/ReportsList";
 import ReportSummary from "./pages/ReportSummary";
@@ -11,6 +9,7 @@ import ChartsPage from "./pages/ChartsPage";
 import UploadPage from "./pages/UploadPage";
 import KpiManagementPage from "./pages/KpiManagementPage";
 import ProcessesPage from "./pages/ProcessesPage";
+import CompareReportsPage from "./pages/CompareReportsPage";
 
 function App() {
   return (
@@ -27,6 +26,10 @@ function App() {
 
           <Button color="inherit" component={Link} to="/reports">
             Reports
+          </Button>
+
+          <Button color="inherit" component={Link} to="/reports/compare">
+            Compare
           </Button>
 
           <Button color="inherit" component={Link} to="/upload">
@@ -46,13 +49,17 @@ function App() {
       <Routes>
         <Route path="/" element={<ReportsHome />} />
         <Route path="/reports" element={<ReportsList />} />
+        <Route path="/reports/compare" element={<CompareReportsPage />} />
+
         <Route path="/report/:runId/summary" element={<ReportSummary />} />
         <Route path="/report/:runId/details" element={<ReportDetails />} />
         <Route path="/report/:runId/upload" element={<UploadPage />} />
-        <Route path="/report/:runId/charts" element={<ChartsPage />} />        <Route path="/upload" element={<UploadPage />} />
+        <Route path="/report/:runId/charts" element={<ChartsPage />} />
+        <Route path="/report/:runId/processes" element={<ProcessesPage />} />
+
+        <Route path="/upload" element={<UploadPage />} />
         <Route path="/kpis" element={<KpiManagementPage />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/report/:runId/processes" element={<ProcessesPage />}/>
       </Routes>
     </Box>
   );

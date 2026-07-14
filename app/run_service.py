@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 import os
 
@@ -52,3 +53,19 @@ def create_run():
     )
 
     return run_id
+
+def delete_run(run_id: str):
+    run_path = Path(RUNS_FOLDER) / run_id
+
+    if not run_path.exists():
+        return {
+            "success": False,
+            "message": "Run not found"
+        }
+
+    shutil.rmtree(run_path)
+
+    return {
+        "success": True,
+        "message": f"{run_id} deleted"
+    }
