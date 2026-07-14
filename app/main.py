@@ -9,6 +9,10 @@ from fastapi import (
     File,
 )
 
+from app.processes_service import (
+    extract_processes_from_json,
+)
+
 from fastapi.middleware.cors import (
     CORSMiddleware,
 )
@@ -30,6 +34,10 @@ from app.report_generator import (
 from app.chart_service import (
     action_trend,
     memory_trend,
+    get_memory_trend_by_run,
+    get_cpu_trend_by_run,
+    get_top_memory_consumers_by_run,
+    get_performance_counters_trend_by_run,
 )
 
 from app.run_service import (
@@ -830,3 +838,133 @@ def debug_run_load(
             orient="records"
         )
     }
+
+@app.get("/charts/actions/{run_id}")
+def chart_actions(run_id: str):
+
+    actions = process_run_load_files(run_id)
+
+    report = generate_action_report(actions)
+
+    return dataframe_to_clean_records(report)
+
+@app.get("/charts/status/{run_id}")
+def chart_status(run_id: str):
+
+    actions = process_run_load_files(run_id)
+
+    report = generate_action_report(actions)
+
+    total_pass = len(
+        report[report["Status"] == "PASS"]
+    )
+
+    total_fail = len(
+        report[report["Status"] == "FAIL"]
+    )
+
+    total_nokpi = len(
+        report[report["Status"] == "NO KPI"]
+    )
+
+    return {
+        "PASS": total_pass,
+        "FAIL": total_fail,
+        "NO KPI": total_nokpi,
+    }
+
+from app.chart_service import (
+    action_trend,
+    memory_trend,
+    get_memory_trend_by_run,
+    get_cpu_trend_by_run,
+    get_top_memory_consumers_by_run,
+)
+
+@app.get("/charts/memory/{run_id}")
+def chart_memory_by_run(
+    run_id: str,
+):
+    try:
+        return get_memory_trend_by_run(
+            run_id
+        )
+
+    except Exception as error:
+        return {
+            "run_id": run_id,
+            "error": str(error),
+            "traceback": traceback.format_exc(),
+        }
+
+
+@app.get("/charts/cpu/{run_id}")
+def chart_cpu_by_run(
+    run_id: str,
+):
+    try:
+        return get_cpu_trend_by_run(
+            run_id
+        )
+
+    except Exception as error:
+        return {
+            "run_id": run_id,
+            "error": str(error),
+            "traceback": traceback.format_exc(),
+        }
+
+
+@app.get("/charts/top-memory/{run_id}")
+def chart_top_memory_by_run(
+    run_id: str,
+):
+    try:
+        return get_top_memory_consumers_by_run(
+            run_id
+        )
+
+    except Exception as error:
+        return {
+            "run_id": run_id,
+            "error": str(error),
+            "traceback": traceback.format_exc(),
+        }
+
+@app.get("/charts/performance-counters/{run_id}")
+def chart_performance_counters_by_run(
+    run_id: str,
+):
+    try:
+        return get_performance_counters_trend_by_run(
+            run_id
+        )
+
+    except Exception as error:
+        return {
+            "run_id": run_id,
+            "error": str(error),
+            "traceback": traceback.format_exc(),
+        }
+
+@app.post("/processes/upload")
+async def upload_processes_json(
+    file: UploadFile = File(...)
+):
+    try:
+
+        content = (
+            await file.read()
+        ).decode(
+            "utf-8",
+            errors="ignore"
+        )
+
+        return extract_processes_from_json(
+            content
+        )
+
+    except Exception as error:
+        return {
+            "error": str(error)
+        }

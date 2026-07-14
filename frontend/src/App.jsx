@@ -10,6 +10,7 @@ import ReportDetails from "./pages/ReportDetails";
 import ChartsPage from "./pages/ChartsPage";
 import UploadPage from "./pages/UploadPage";
 import KpiManagementPage from "./pages/KpiManagementPage";
+import ProcessesPage from "./pages/ProcessesPage";
 
 function App() {
   return (
@@ -51,6 +52,7 @@ function App() {
         <Route path="/report/:runId/charts" element={<ChartsPage />} />        <Route path="/upload" element={<UploadPage />} />
         <Route path="/kpis" element={<KpiManagementPage />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/report/:runId/processes" element={<ProcessesPage />}/>
       </Routes>
     </Box>
   );
