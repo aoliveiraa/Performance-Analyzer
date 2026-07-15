@@ -10,8 +10,7 @@ import {
   Typography,
 } from "@mui/material";
 
-import { useParams } from "react-router-dom";
-
+import { useNavigate, useParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 
 import ReactECharts from "echarts-for-react";
@@ -26,15 +25,38 @@ const FIXED_COUNTERS = [
   "% Processor Time",
 ];
 
+const COUNTER_GROUPS = {
+  Memory: [
+    "Private Bytes",
+    "Working Set",
+  ],
+
+  Process: [
+    "Handle Count",
+    "Thread Count",
+  ],
+
+  IO: [
+    "IO Read Bytes/sec",
+    "IO Write Bytes/sec",
+  ],
+
+  CPU: [
+    "% Processor Time",
+  ],
+};
+
 function ChartsPage() {
   const { runId } = useParams();
+  const navigate = useNavigate();
 
   const [actions, setActions] = useState([]);
   const [status, setStatus] = useState(null);
   const [performanceCounters, setPerformanceCounters] = useState([]);
   const [topMemory, setTopMemory] = useState([]);
+  const [reportMetadata, setReportMetadata] = useState(null);
 
-  const [selectedCounters, setSelectedCounters] = useState(FIXED_COUNTERS);
+  const [selectedCounters, setSelectedCounters] = useState([]);
 
   const [error, setError] = useState("");
 
@@ -78,9 +100,31 @@ function ChartsPage() {
     return {};
   }
 
+  async function loadReportMetadata() {
+    try {
+      const response = await fetch(
+        `http://localhost:8000/runs/${runId}/files`
+      );
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+
+      setReportMetadata(
+        data?.metadata || null
+      );
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
   async function loadCharts() {
     try {
       setError("");
+
+      await loadReportMetadata();
 
       const actionsData = await safeFetchArray(
         `http://localhost:8000/charts/actions/${runId}`
@@ -354,139 +398,212 @@ function ChartsPage() {
     ],
   };
 
-  function renderFixedCounterSelector() {
-    return (
-      <Paper
-        variant="outlined"
+function renderFixedCounterSelector() {
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 2,
+        mb: 2,
+        borderRadius: 3,
+        backgroundColor: "#fafafa",
+      }}
+    >
+      <Box
         sx={{
-          p: 2,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: {
+            xs: "flex-start",
+            md: "center",
+          },
+          flexDirection: {
+            xs: "column",
+            md: "row",
+          },
+          gap: 1,
           mb: 2,
-          borderRadius: 3,
-          backgroundColor: "#fafafa",
         }}
       >
+        <Box>
+          <Typography
+            variant="subtitle1"
+            fontWeight="bold"
+          >
+            Performance Counters
+          </Typography>
+
+          <Typography
+            variant="body2"
+            color="text.secondary"
+          >
+            {selectedCounters.length === 0
+              ? "No counters selected"
+              : `${selectedCounters.length} counter(s) selected`}
+          </Typography>
+        </Box>
+
         <Box
           sx={{
             display: "flex",
-            justifyContent: "space-between",
-            alignItems: {
-              xs: "flex-start",
-              md: "center",
-            },
-            flexDirection: {
-              xs: "column",
-              md: "row",
-            },
             gap: 1,
-            mb: 1,
           }}
         >
-          <Box>
-            <Typography
-              variant="subtitle1"
-              fontWeight="bold"
-            >
-              Performance counters
-            </Typography>
-
-            <Typography
-              variant="body2"
-              color="text.secondary"
-            >
-              Selected: {selectedCounters.length} of {FIXED_COUNTERS.length}
-            </Typography>
-          </Box>
-
-          <Box
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() =>
+              setSelectedCounters(FIXED_COUNTERS)
+            }
             sx={{
-              display: "flex",
-              gap: 1,
+              textTransform: "none",
+              borderRadius: 2,
             }}
           >
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={() =>
-                setSelectedCounters(FIXED_COUNTERS)
-              }
-              sx={{
-                textTransform: "none",
-                borderRadius: 2,
-              }}
-            >
-              Select all
-            </Button>
+            Select All
+          </Button>
 
-            <Button
-              size="small"
-              variant="outlined"
-              color="warning"
-              onClick={() =>
-                setSelectedCounters([])
-              }
-              sx={{
-                textTransform: "none",
-                borderRadius: 2,
-              }}
-            >
-              Clear
-            </Button>
-          </Box>
+          <Button
+            size="small"
+            variant="outlined"
+            color="warning"
+            onClick={() =>
+              setSelectedCounters([])
+            }
+            sx={{
+              textTransform: "none",
+              borderRadius: 2,
+            }}
+          >
+            Clear Selection
+          </Button>
         </Box>
+      </Box>
 
-        <FormGroup
-          sx={{
-            display: "grid",
-            gridTemplateColumns: {
-              xs: "1fr",
-              sm: "1fr 1fr",
-              md: "1fr 1fr 1fr 1fr",
-            },
-            gap: 0.5,
-          }}
-        >
-          {FIXED_COUNTERS.map((counter) => (
-            <FormControlLabel
-              key={counter}
-              control={
-                <Checkbox
-                  size="small"
-                  checked={selectedCounters.includes(counter)}
-                  onChange={() =>
-                    handleToggleCounter(counter)
-                  }
-                />
-              }
-              label={
-                <Typography
-                  variant="body2"
-                  title={counter}
-                >
-                  {counter}
-                </Typography>
-              }
-            />
-          ))}
-        </FormGroup>
-      </Paper>
-    );
-  }
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: {
+            xs: "1fr",
+            md: "1fr 1fr",
+          },
+          gap: 2,
+        }}
+      >
+        {Object.entries(COUNTER_GROUPS).map(
+          ([groupName, counters]) => (
+            <Paper
+              key={groupName}
+              variant="outlined"
+              sx={{
+                p: 2,
+                borderRadius: 3,
+              }}
+            >
+              <Typography
+                variant="subtitle2"
+                fontWeight="bold"
+                sx={{
+                  mb: 1,
+                }}
+              >
+                {groupName}
+              </Typography>
+
+              <FormGroup>
+                {counters.map((counter) => (
+                  <FormControlLabel
+                    key={counter}
+                    control={
+                      <Checkbox
+                        size="small"
+                        checked={selectedCounters.includes(
+                          counter
+                        )}
+                        onChange={() =>
+                          handleToggleCounter(
+                            counter
+                          )
+                        }
+                      />
+                    }
+                    label={
+                      <Typography
+                        variant="body2"
+                      >
+                        {counter}
+                      </Typography>
+                    }
+                  />
+                ))}
+              </FormGroup>
+            </Paper>
+          )
+        )}
+      </Box>
+    </Paper>
+  );
+}
 
   return (
     <Container maxWidth="xl">
       <Box sx={{ py: 4 }}>
-        <Box sx={{ mb: 3 }}>
-          <Typography
-            variant="h4"
-            fontWeight="bold"
-            sx={{ mb: 1 }}
-          >
-            Charts
-          </Typography>
+       <Box
+  sx={{
+    mb: 3,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 2,
+  }}
+>
+          <Box>
+            <Typography
+              variant="h4"
+              fontWeight="bold"
+              sx={{ mb: 1 }}
+            >
+              Charts
+            </Typography>
 
-          <Typography color="text.secondary">
-            Run: {runId}
-          </Typography>
+            {reportMetadata ? (
+              <Typography
+                color="text.secondary"
+                sx={{
+                  fontWeight: 500,
+                }}
+              >
+                {[
+                  reportMetadata.version,
+                  reportMetadata.build,
+                  reportMetadata.suite,
+                  reportMetadata.environment,
+                  reportMetadata.date,
+                ]
+                  .filter(Boolean)
+                  .join(" | ")}
+              </Typography>
+            ) : (
+              <Typography color="text.secondary">
+                Loading report information...
+              </Typography>
+            )}
+          </Box>
+
+
+          <Button
+            variant="outlined"
+            onClick={() =>
+              navigate(`/report/${runId}/summary`)
+            }
+            sx={{
+              borderRadius: 3,
+              fontWeight: "bold",
+            }}
+          >
+            Back to Summary
+          </Button>
         </Box>
 
         {error && (
@@ -581,8 +698,8 @@ function ChartsPage() {
                 No performance counter data found for this run.
               </Alert>
             ) : selectedCounters.length === 0 ? (
-              <Alert severity="warning">
-                Select at least one counter to display the chart.
+              <Alert severity="info">
+                Select one or more counters above to build the performance chart.
               </Alert>
             ) : filteredCountersData.length === 0 ? (
               <Alert severity="warning">

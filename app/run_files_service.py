@@ -23,21 +23,35 @@ def get_run_load_folder(run_id: str):
 def get_run_counters_folder(run_id: str):
     return get_run_folder(run_id) / "counters"
 
+def get_run_processes_folder(run_id: str):
+    return get_run_folder(run_id) / "processes"
+
 
 def get_run_metadata_file(run_id: str):
     return get_run_folder(run_id) / "metadata.json"
 
+def get_run_processes_file(run_id: str):
+    return (
+        get_run_processes_folder(run_id)
+        / "processes.json"
+    )
 
 def ensure_run_folders(run_id: str):
     load_folder = get_run_load_folder(run_id)
     counters_folder = get_run_counters_folder(run_id)
+    processes_folder = get_run_processes_folder(run_id)
 
     load_folder.mkdir(
+    parents=True,
+    exist_ok=True,
+    )
+
+    counters_folder.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    counters_folder.mkdir(
+    processes_folder.mkdir(
         parents=True,
         exist_ok=True,
     )
@@ -194,6 +208,8 @@ def list_run_files(run_id: str):
         "run_id": run_id,
         "load_files": load_files,
         "counters_files": counters_files,
+        "has_processes_file":
+            get_run_processes_file(run_id).exists(),
         "metadata": get_run_metadata(run_id),
     }
 
@@ -418,3 +434,38 @@ def get_reports_summary():
         })
 
     return reports
+
+def save_processes_json(
+    run_id: str,
+    content: bytes,
+):
+    ensure_run_folders(run_id)
+
+    file_path = get_run_processes_file(
+        run_id
+    )
+
+    with open(
+        file_path,
+        "wb",
+    ) as file:
+        file.write(content)
+
+    return str(file_path)
+
+def load_processes_json(
+    run_id: str,
+):
+    file_path = get_run_processes_file(
+        run_id
+    )
+
+    if not file_path.exists():
+        return None
+
+    with open(
+        file_path,
+        "r",
+        encoding="utf-8",
+    ) as file:
+        return json.load(file)

@@ -1,6 +1,6 @@
 from pathlib import Path
 import traceback
-
+import json
 import pandas as pd
 
 from fastapi import (
@@ -62,6 +62,8 @@ from app.run_files_service import (
     process_run_counters_files,
     detect_run_memory_leaks,
     save_run_metadata_from_filename,
+    save_processes_json,
+    load_processes_json,
 )
 
 from app.reports_service import (
@@ -1303,6 +1305,86 @@ def chart_performance_counters_by_run(
 # ============================================================
 # PROCESSES
 # ============================================================
+
+@app.post("/runs/{run_id}/upload/processes-file")
+async def upload_run_processes_file(
+    run_id: str,
+    file: UploadFile = File(...),
+):
+    """
+    Uploads a Processes JSON file and persists it inside:
+
+    uploads/{run_id}/processes/processes.json
+    """
+
+    try:
+        contents = await file.read()
+
+        save_processes_json(
+            run_id,
+            contents,
+        )
+
+        content_text = contents.decode(
+            "utf-8",
+            errors="ignore",
+        )
+
+        records = extract_processes_from_json(
+            content_text
+        )
+
+        return {
+            "message": "Processes JSON uploaded successfully",
+            "run_id": run_id,
+            "records_count": len(records),
+            "records": records,
+        }
+
+    except Exception as error:
+        return {
+            "error": str(error),
+            "run_id": run_id,
+        }
+
+@app.get("/runs/{run_id}/processes")
+def get_run_processes(
+    run_id: str,
+):
+    """
+    Returns persisted Processes JSON data.
+    """
+
+    try:
+        saved_json = load_processes_json(
+            run_id
+        )
+
+        if saved_json is None:
+            return {
+                "run_id": run_id,
+                "records": [],
+            }
+
+        json_text = json.dumps(
+            saved_json
+        )
+
+        records = extract_processes_from_json(
+            json_text
+        )
+
+        return {
+            "run_id": run_id,
+            "records": records,
+            "records_count": len(records),
+        }
+
+    except Exception as error:
+        return {
+            "error": str(error),
+            "run_id": run_id,
+        }
 
 @app.post("/processes/upload")
 async def upload_processes_json(

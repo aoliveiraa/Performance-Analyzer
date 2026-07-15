@@ -25,7 +25,7 @@ import InsertChartIcon from "@mui/icons-material/InsertChart";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import WarningIcon from "@mui/icons-material/Warning";
-
+import MemoryIcon from "@mui/icons-material/Memory";
 import api from "../services/api";
 
 function ReportSummary() {
@@ -35,13 +35,31 @@ function ReportSummary() {
   const [message, setMessage] = useState("");
   const [detailsCount, setDetailsCount] = useState(0);
   const [summaryCount, setSummaryCount] = useState(0);
+  const [reportMetadata, setReportMetadata] =
+  useState(null);
 
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     loadSummary();
+    loadMetadata();
   }, [runId]);
+
+
+  const loadMetadata = async () => {
+  try {
+    const response = await api.get(
+      `/runs/${runId}/files`
+    );
+
+    setReportMetadata(
+      response.data?.metadata || null
+    );
+  } catch (error) {
+    console.error(error);
+  }
+};
 
   const loadSummary = async () => {
     setLoading(true);
@@ -153,7 +171,17 @@ function ReportSummary() {
               </Typography>
 
               <Typography sx={{ mt: 1, opacity: 0.9 }}>
-                Compiled view for run: <strong>{runId}</strong>
+                {reportMetadata
+                  ? [
+                      reportMetadata.version,
+                      reportMetadata.build,
+                      reportMetadata.suite,
+                      reportMetadata.environment,
+                      reportMetadata.date,
+                    ]
+                      .filter(Boolean)
+                      .join(" | ")
+                  : "Loading report information..."}
               </Typography>
             </Box>
 
@@ -201,6 +229,21 @@ function ReportSummary() {
                 }}
               >
                 Charts
+              </Button>
+
+              <Button
+                component={Link}
+                to={`/report/${runId}/processes`}
+                variant="contained"
+                color="inherit"
+                startIcon={<MemoryIcon />}
+                sx={{
+                  color: "#0d47a1",
+                  fontWeight: "bold",
+                  borderRadius: 3,
+                }}
+              >
+                Processes
               </Button>
             </Stack>
           </Stack>

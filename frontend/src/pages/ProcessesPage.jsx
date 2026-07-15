@@ -1,4 +1,8 @@
-import { useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useParams } from "react-router-dom";
 
 import {
@@ -36,6 +40,10 @@ function ProcessesPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
+  useEffect(() => {
+  loadPersistedProcesses();
+}, [runId]);
+
   const filteredRows = useMemo(() => {
     if (!search.trim()) {
       return rows;
@@ -61,6 +69,35 @@ function ProcessesPage() {
     });
   }, [rows, search]);
 
+  const loadPersistedProcesses = async () => {
+  if (!runId) {
+    return;
+  }
+
+  try {
+    const response = await api.get(
+      `/runs/${runId}/processes`
+    );
+
+    const data = response.data;
+
+    if (
+      data &&
+      Array.isArray(data.records)
+    ) {
+      setRows(data.records);
+
+      if (data.records.length > 0) {
+        setSuccessMessage(
+          `${data.records.length} persisted process record(s) loaded.`
+        );
+      }
+    }
+  } catch (error) {
+    console.error(error);
+  }
+};
+
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
 
@@ -84,19 +121,22 @@ function ProcessesPage() {
 
       formData.append("file", selectedFile);
 
-      const response = await api.post("/processes/upload", formData, {
+      const response = await api.post(`/runs/${runId}/upload/processes-file`, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
       });
 
-      if (Array.isArray(response.data)) {
-        setRows(response.data);
+      if (
+  response.data &&
+  Array.isArray(response.data.records)
+) {
+  setRows(response.data.records);
 
-        setSuccessMessage(
-          `JSON uploaded successfully. ${response.data.length} process record(s) loaded.`
-        );
-      } else if (response.data?.error) {
+  setSuccessMessage(
+    `JSON uploaded successfully. ${response.data.records.length} process record(s) loaded.`
+  );
+} else if (response.data?.error) {
         setRows([]);
         setErrorMessage(response.data.error);
       } else {
@@ -296,8 +336,9 @@ function ProcessesPage() {
 
         {rows.length === 0 ? (
           <Alert severity="info">
-            Upload a process JSON file to display the process table.
-          </Alert>
+  No Processes JSON found for this report.
+  Upload a file from Upload Report or use the button above.
+</Alert>
         ) : filteredRows.length === 0 ? (
           <Alert severity="warning">
             No process records found for the current filter.

@@ -28,11 +28,15 @@ function RunUploadPanel({
 }) {
   const [runs, setRuns] = useState([]);
   const [runsFilesMap, setRunsFilesMap] = useState({});
-  const [selectedRunId, setSelectedRunId] = useState(runId || "");
 
   const [loadFiles, setLoadFiles] = useState([]);
   const [countersFiles, setCountersFiles] = useState([]);
   const [runFiles, setRunFiles] = useState(null);
+  const [selectedRunId, setSelectedRunId] = useState(runId || "");
+  const [processesFile, setProcessesFile] = useState(null);
+
+  const [uploadingProcesses, setUploadingProcesses] =
+    useState(false);
 
   const [creatingRun, setCreatingRun] = useState(false);
   const [uploadingLoad, setUploadingLoad] = useState(false);
@@ -44,6 +48,12 @@ function RunUploadPanel({
   useEffect(() => {
     loadRuns();
   }, []);
+
+  useEffect(() => {
+  if (runId) {
+    setSelectedRunId(runId);
+  }
+}, [runId]);
 
   useEffect(() => {
     if (runId && runId !== selectedRunId) {
@@ -312,6 +322,15 @@ function RunUploadPanel({
       const response = await api.post("/runs/create");
       const newRunId = response.data.run_id;
 
+      setSelectedRunId(newRunId);
+
+setRunFiles({
+  run_id: newRunId,
+  load_files: [],
+  counters_files: [],
+  metadata: {},
+});
+
       addTemporaryRunToList(newRunId);
 
       setSelectedRunId(newRunId);
@@ -325,6 +344,7 @@ function RunUploadPanel({
 
       setLoadFiles([]);
       setCountersFiles([]);
+      setProcessesFile(null);
 
       if (onRunChange) {
         onRunChange(newRunId);
@@ -365,6 +385,7 @@ function RunUploadPanel({
 
     setLoadFiles([]);
     setCountersFiles([]);
+    setProcessesFile(null);
 
     if (onRunChange) {
       onRunChange(newRunId);
@@ -483,6 +504,65 @@ function RunUploadPanel({
       setUploadingCounters(false);
     }
   }
+
+  async function uploadProcessesFile() {
+  if (!processesFile) {
+    setErrorMessage(
+      "Please select a Processes JSON file."
+    );
+    return;
+  }
+
+  const currentRunId =
+    await ensureRunExists();
+
+  setUploadingProcesses(true);
+
+  setMessage("");
+  setErrorMessage("");
+
+  try {
+    const formData = new FormData();
+
+    formData.append(
+      "file",
+      processesFile
+    );
+
+    await api.post(
+      `/runs/${currentRunId}/upload/processes-file`,
+      formData,
+      {
+        headers: {
+          "Content-Type":
+            "multipart/form-data",
+        },
+      }
+    );
+
+    setMessage(
+      "Processes JSON uploaded successfully."
+    );
+
+    setProcessesFile(null);
+
+    await loadRunFiles(currentRunId);
+
+    if (onRunDataChanged) {
+      await onRunDataChanged(
+        currentRunId
+      );
+    }
+  } catch (error) {
+    console.error(error);
+
+    setErrorMessage(
+      "Could not upload Processes JSON."
+    );
+  } finally {
+    setUploadingProcesses(false);
+  }
+}
 
   async function handleRunChange(currentSelectedRunId) {
     setSelectedRunId(currentSelectedRunId);
@@ -796,6 +876,76 @@ function RunUploadPanel({
           </Stack>
         </Box>
 
+<Divider />
+
+<Box>
+  <Typography
+    variant="h6"
+    fontWeight="bold"
+    sx={{ mb: 1 }}
+  >
+    Processes JSON
+  </Typography>
+
+  <Stack
+    direction={{
+      xs: "column",
+      md: "row",
+    }}
+    spacing={2}
+    alignItems={{
+      xs: "stretch",
+      md: "center",
+    }}
+  >
+    <Button
+      variant="outlined"
+      component="label"
+      startIcon={<CloudUploadIcon />}
+      sx={{
+        borderRadius: 3,
+        fontWeight: "bold",
+      }}
+    >
+      Select Processes JSON
+
+      <input
+        hidden
+        type="file"
+        accept=".json"
+        onChange={(event) => {
+          setProcessesFile(
+            event.target.files?.[0] || null
+          );
+
+          setMessage("");
+          setErrorMessage("");
+        }}
+      />
+    </Button>
+
+    <Typography color="text.secondary">
+      {processesFile
+        ? processesFile.name
+        : "No file selected"}
+    </Typography>
+
+    <Button
+      variant="contained"
+      onClick={uploadProcessesFile}
+      disabled={uploadingProcesses}
+      sx={{
+        borderRadius: 3,
+        fontWeight: "bold",
+      }}
+    >
+      {uploadingProcesses
+        ? "Uploading..."
+        : "Upload Processes"}
+    </Button>
+  </Stack>
+</Box>
+
         {countersFiles.length > 0 && (
           <Box>
             {countersFiles.map((file) => (
@@ -855,6 +1005,29 @@ function RunUploadPanel({
             ) : (
               <Typography color="text.secondary">
                 No Counters files uploaded yet.
+              </Typography>
+            )}
+          </Box>
+
+          <Typography
+            fontWeight="bold"
+            sx={{ mt: 2 }}
+          >
+            Processes JSON:
+          </Typography>
+
+          <Box sx={{ mt: 1 }}>
+            {runFiles?.has_processes_file ? (
+              <Chip
+                color="success"
+                label="processes.json"
+                variant="outlined"
+              />
+            ) : (
+              <Typography
+                color="text.secondary"
+              >
+                No Processes JSON uploaded yet.
               </Typography>
             )}
           </Box>

@@ -36,9 +36,11 @@ function ReportDetails() {
   const [actions, setActions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [reportMetadata, setReportMetadata] = useState(null);
 
   useEffect(() => {
     loadDetails();
+    loadMetadata();
   }, [runId]);
 
   const loadDetails = async () => {
@@ -64,6 +66,20 @@ function ReportDetails() {
       setLoading(false);
     }
   };
+
+  const loadMetadata = async () => {
+  try {
+    const response = await api.get(
+      `/runs/${runId}/files`
+    );
+
+    setReportMetadata(
+      response.data?.metadata || null
+    );
+  } catch (error) {
+    console.error(error);
+  }
+};
 
   const getNumber = (value) => {
     const numberValue = Number(value);
@@ -152,14 +168,24 @@ function ReportDetails() {
               </Typography>
 
               <Typography sx={{ mt: 1, opacity: 0.9 }}>
-                Detailed report by Action and Hardware for run: {runId}
+                {reportMetadata
+                  ? [
+                      reportMetadata.version,
+                      reportMetadata.build,
+                      reportMetadata.suite,
+                      reportMetadata.environment,
+                      reportMetadata.date,
+                    ]
+                      .filter(Boolean)
+                      .join(" | ")
+                  : "Loading report information..."}
               </Typography>
             </Box>
 
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
               <Button
                 component={Link}
-                to="/reports"
+                to={`/report/${runId}/summary`}
                 variant="contained"
                 color="inherit"
                 startIcon={<ArrowBackIcon />}
@@ -169,7 +195,7 @@ function ReportDetails() {
                   borderRadius: 3,
                 }}
               >
-                Back to Reports
+                Back to Summary
               </Button>
 
               <Button

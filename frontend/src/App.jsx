@@ -1,6 +1,5 @@
 import { AppBar, Box, Button, Toolbar, Typography } from "@mui/material";
 import { Link, Route, Routes } from "react-router-dom";
-import Dashboard from "./pages/Dashboard";
 import ReportsHome from "./pages/ReportsHome";
 import ReportsList from "./pages/ReportsList";
 import ReportSummary from "./pages/ReportSummary";
@@ -40,9 +39,6 @@ function App() {
             KPIs
           </Button>
 
-          <Button color="inherit" component={Link} to="/dashboard">
-            Dashboard
-          </Button>
         </Toolbar>
       </AppBar>
 
@@ -59,7 +55,6 @@ function App() {
 
         <Route path="/upload" element={<UploadPage />} />
         <Route path="/kpis" element={<KpiManagementPage />} />
-        <Route path="/dashboard" element={<Dashboard />} />
       </Routes>
     </Box>
   );
