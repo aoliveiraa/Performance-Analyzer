@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import MemoryIcon from "@mui/icons-material/Memory";
-
 import {
   Alert,
   Box,
@@ -23,10 +21,15 @@ import {
 } from "@mui/material";
 
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import InsertChartIcon from "@mui/icons-material/InsertChart";
-import UploadFileIcon from "@mui/icons-material/UploadFile";
+import AssessmentIcon from "@mui/icons-material/Assessment";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import ErrorIcon from "@mui/icons-material/Error";
+import FactCheckIcon from "@mui/icons-material/FactCheck";
+import InsertChartIcon from "@mui/icons-material/InsertChart";
+import MemoryIcon from "@mui/icons-material/Memory";
+import SummarizeIcon from "@mui/icons-material/Summarize";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
 
 import api from "../services/api";
 
@@ -36,11 +39,10 @@ function ReportDetails() {
   const [actions, setActions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [reportMetadata, setReportMetadata] = useState(null);
+  const [metadata, setMetadata] = useState({});
 
   useEffect(() => {
     loadDetails();
-    loadMetadata();
   }, [runId]);
 
   const loadDetails = async () => {
@@ -51,12 +53,22 @@ function ReportDetails() {
       const response = await api.get(`/reports/actions/${runId}`);
 
       if (Array.isArray(response.data)) {
-        setActions(response.data);
-      } else if (response.data?.records) {
-        setActions(response.data.records);
-      } else {
-        setActions([]);
-      }
+  setActions(response.data);
+} else if (response.data?.records) {
+  setActions(response.data.records);
+} else {
+  setActions([]);
+}
+
+const filesResponse = await api.get(
+  `/runs/${runId}/files`
+);
+
+console.log("FILES RESPONSE", filesResponse.data);
+
+setMetadata(
+  filesResponse.data?.metadata || {}
+);
     } catch (error) {
       console.error(error);
       setErrorMessage(
@@ -66,20 +78,6 @@ function ReportDetails() {
       setLoading(false);
     }
   };
-
-  const loadMetadata = async () => {
-  try {
-    const response = await api.get(
-      `/runs/${runId}/files`
-    );
-
-    setReportMetadata(
-      response.data?.metadata || null
-    );
-  } catch (error) {
-    console.error(error);
-  }
-};
 
   const getNumber = (value) => {
     const numberValue = Number(value);
@@ -119,6 +117,7 @@ function ReportDetails() {
   const totalPass = actions.filter((item) => item.Status === "PASS").length;
   const totalFail = actions.filter((item) => item.Status === "FAIL").length;
   const totalNoKpi = actions.filter((item) => item.Status === "NO KPI").length;
+  const totalActions = Object.keys(groupedActions).length;
 
   if (loading) {
     return (
@@ -144,104 +143,227 @@ function ReportDetails() {
   }
 
   return (
-    <Box sx={{ backgroundColor: "#f4f6f8", minHeight: "100vh", py: 4 }}>
+    <Box
+      sx={{
+        background: "linear-gradient(135deg, #FFFFFF 0%, #F1F8E9 100%)",
+        minHeight: "100vh",
+        py: 4,
+      }}
+    >
       <Container maxWidth="xl">
         <Paper
+          elevation={0}
           sx={{
-            p: 4,
+            p: { xs: 3, md: 4 },
             mb: 4,
-            borderRadius: 4,
-            background:
-              "linear-gradient(135deg, #0d47a1 0%, #1976d2 45%, #42a5f5 100%)",
-            color: "white",
+            borderRadius: 5,
+            backgroundColor: "#ffffff",
+            border: "1px solid #E8F5E9",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
           }}
         >
           <Stack
             direction={{ xs: "column", md: "row" }}
             justifyContent="space-between"
-            alignItems={{ xs: "flex-start", md: "center" }}
-            spacing={2}
+            alignItems={{ xs: "flex-start", md: "flex-start" }}
+            spacing={3}
           >
-            <Box>
-              <Typography variant="h3" fontWeight="bold">
-                Expanded Report
-              </Typography>
+            <Box sx={{ flex: 1 }}>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Box
+                  sx={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 3,
+                    backgroundColor: "#E8F5E9",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#2E7D32",
+                  }}
+                >
+                  <FactCheckIcon sx={{ fontSize: 34 }} />
+                </Box>
 
-              <Typography sx={{ mt: 1, opacity: 0.9 }}>
-                {reportMetadata
-                  ? [
-                      reportMetadata.version,
-                      reportMetadata.build,
-                      reportMetadata.suite,
-                      reportMetadata.environment,
-                      reportMetadata.date,
-                    ]
-                      .filter(Boolean)
-                      .join(" | ")
-                  : "Loading report information..."}
-              </Typography>
+                <Box>
+                  <Typography
+                    variant="h3"
+                    fontWeight="bold"
+                    sx={{
+                      color: "#1C2526",
+                      lineHeight: 1.1,
+                    }}
+                  >
+                    Expanded Report
+                  </Typography>
+
+                  <Typography
+                    sx={{
+                      mt: 0.5,
+                      color: "#607D8B",
+                    }}
+                  >
+                    Detailed results grouped by Action and Hardware.
+                  </Typography>
+                </Box>
+              </Stack>
+
+              <Stack
+                direction="row"
+                spacing={1}
+                useFlexGap
+                flexWrap="wrap"
+                sx={{ mt: 2 }}
+              >
+<Stack
+  direction="row"
+  spacing={1}
+  useFlexGap
+  flexWrap="wrap"
+  sx={{ mt: 2 }}
+>
+  <Chip
+    label={metadata?.version}
+    color="success"
+    variant="outlined"
+  />
+
+  <Chip
+    label={metadata?.build}
+    color="primary"
+    variant="outlined"
+  />
+
+  <Chip
+    label={metadata?.suite}
+    color="secondary"
+    variant="outlined"
+  />
+
+  <Chip
+    label={metadata?.environment}
+    color="info"
+    variant="outlined"
+  />
+
+  <Chip
+    label={metadata?.date}
+    color="warning"
+    variant="outlined"
+  />
+</Stack>
+              </Stack>
             </Box>
 
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-              <Button
-                component={Link}
-                to={`/report/${runId}/summary`}
-                variant="contained"
-                color="inherit"
-                startIcon={<ArrowBackIcon />}
-                sx={{
-                  color: "#0d47a1",
-                  fontWeight: "bold",
-                  borderRadius: 3,
-                }}
-              >
-                Back to Summary
-              </Button>
+            <Button
+              component={Link}
+              to={`/report/${runId}/summary`}
+              variant="outlined"
+              startIcon={<ArrowBackIcon />}
+              sx={{
+                borderRadius: 3,
+                textTransform: "none",
+                fontWeight: "bold",
+                color: "#2E7D32",
+                borderColor: "#4CAF50",
+                backgroundColor: "#FFFFFF",
+                "&:hover": {
+                  borderColor: "#2E7D32",
+                  backgroundColor: "#F1F8E9",
+                },
+              }}
+            >
+              Back to Summary
+            </Button>
+          </Stack>
 
-              <Button
-                component={Link}
-                to={`/report/${runId}/upload`}
-                variant="contained"
-                color="inherit"
-                startIcon={<UploadFileIcon />}
-                sx={{
-                  color: "#0d47a1",
-                  fontWeight: "bold",
-                  borderRadius: 3,
-                }}
-              >
-                Upload
-              </Button>
+          <Divider sx={{ my: 3 }} />
 
-              <Button
-                component={Link}
-                to={`/report/${runId}/charts`}
-                variant="contained"
-                color="inherit"
-                startIcon={<InsertChartIcon />}
-                sx={{
-                  color: "#0d47a1",
-                  fontWeight: "bold",
-                  borderRadius: 3,
-                }}
-              >
-                Charts
-              </Button>
-              <Button
-                component={Link}
-                to={`/report/${runId}/processes`}
-                variant="contained"
-                color="inherit"
-                startIcon={<MemoryIcon />}
-                sx={{
-                  color: "#0d47a1",
-                  fontWeight: "bold",
-                  borderRadius: 3,
-                }}
-              >
-                Processes
-              </Button>
-            </Stack>
+          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+            <Button
+              component={Link}
+              to={`/report/${runId}/summary`}
+              startIcon={<SummarizeIcon />}
+              variant="text"
+              sx={{
+                textTransform: "none",
+                fontWeight: "bold",
+                color: "#263238",
+              }}
+            >
+              Summary
+            </Button>
+
+            <Button
+              component={Link}
+              to={`/report/${runId}/details`}
+              startIcon={<AssessmentIcon />}
+              variant="contained"
+              color="success"
+              sx={{
+                textTransform: "none",
+                fontWeight: "bold",
+                borderRadius: 3,
+              }}
+            >
+              Details
+            </Button>
+
+            <Button
+              component={Link}
+              to={`/report/${runId}/upload`}
+              startIcon={<UploadFileIcon />}
+              variant="text"
+              sx={{
+                textTransform: "none",
+                fontWeight: "bold",
+                color: "#263238",
+              }}
+            >
+              Upload
+            </Button>
+
+            <Button
+              component={Link}
+              to={`/report/${runId}/charts`}
+              startIcon={<InsertChartIcon />}
+              variant="text"
+              sx={{
+                textTransform: "none",
+                fontWeight: "bold",
+                color: "#263238",
+              }}
+            >
+              Charts
+            </Button>
+
+            <Button
+              component={Link}
+              to={`/report/${runId}/processes`}
+              startIcon={<MemoryIcon />}
+              variant="text"
+              sx={{
+                textTransform: "none",
+                fontWeight: "bold",
+                color: "#263238",
+              }}
+            >
+              Processes
+            </Button>
+
+            <Button
+              component={Link}
+              to="/compare"
+              startIcon={<CompareArrowsIcon />}
+              variant="text"
+              sx={{
+                textTransform: "none",
+                fontWeight: "bold",
+                color: "#263238",
+              }}
+            >
+              Compare
+            </Button>
           </Stack>
         </Paper>
 
@@ -258,10 +380,20 @@ function ReportDetails() {
         >
           <Paper sx={{ p: 3, borderRadius: 4, flex: 1 }}>
             <Typography color="text.secondary" fontWeight="bold">
-              Total Rows
+              Actions
             </Typography>
 
-            <Typography variant="h3" fontWeight="bold">
+            <Typography variant="h4" fontWeight="bold">
+              {totalActions}
+            </Typography>
+          </Paper>
+
+          <Paper sx={{ p: 3, borderRadius: 4, flex: 1 }}>
+            <Typography color="text.secondary" fontWeight="bold">
+              Hardware Rows
+            </Typography>
+
+            <Typography variant="h4" fontWeight="bold">
               {actions.length}
             </Typography>
           </Paper>
@@ -271,7 +403,7 @@ function ReportDetails() {
               PASS
             </Typography>
 
-            <Typography variant="h3" fontWeight="bold" color="success.main">
+            <Typography variant="h4" fontWeight="bold" color="success.main">
               {totalPass}
             </Typography>
           </Paper>
@@ -281,7 +413,7 @@ function ReportDetails() {
               FAIL
             </Typography>
 
-            <Typography variant="h3" fontWeight="bold" color="error.main">
+            <Typography variant="h4" fontWeight="bold" color="error.main">
               {totalFail}
             </Typography>
           </Paper>
@@ -291,7 +423,7 @@ function ReportDetails() {
               NO KPI
             </Typography>
 
-            <Typography variant="h3" fontWeight="bold" color="warning.main">
+            <Typography variant="h4" fontWeight="bold" color="warning.main">
               {totalNoKpi}
             </Typography>
           </Paper>
@@ -299,9 +431,20 @@ function ReportDetails() {
 
         {actions.length === 0 && !errorMessage && (
           <Alert severity="info">
-            No expanded data found for this run. Please upload Load files for
-            this report.
+            No expanded data found for this run. Please upload Load files for this report.
           </Alert>
+        )}
+
+        {actions.length > 0 && (
+          <Paper sx={{ p: 3, mb: 4, borderRadius: 4 }}>
+            <Typography variant="h5" fontWeight="bold" sx={{ mb: 1 }}>
+              Results by Action and Hardware
+            </Typography>
+
+            <Typography color="text.secondary">
+              The results below keep the current detailed structure: each Action has one table with its Hardware rows.
+            </Typography>
+          </Paper>
         )}
 
         {Object.entries(groupedActions).map(([actionName, rows]) => (
@@ -327,6 +470,7 @@ function ReportDetails() {
                 label={`${rows.length} hardware result(s)`}
                 color="primary"
                 variant="outlined"
+                sx={{ borderRadius: 2, fontWeight: "bold" }}
               />
             </Stack>
 

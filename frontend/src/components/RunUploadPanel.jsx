@@ -35,9 +35,7 @@ function RunUploadPanel({
   const [selectedRunId, setSelectedRunId] = useState(runId || "");
   const [processesFile, setProcessesFile] = useState(null);
 
-  const [uploadingProcesses, setUploadingProcesses] =
-    useState(false);
-
+  const [uploadingProcesses, setUploadingProcesses] = useState(false);
   const [creatingRun, setCreatingRun] = useState(false);
   const [uploadingLoad, setUploadingLoad] = useState(false);
   const [uploadingCounters, setUploadingCounters] = useState(false);
@@ -50,10 +48,10 @@ function RunUploadPanel({
   }, []);
 
   useEffect(() => {
-  if (runId) {
-    setSelectedRunId(runId);
-  }
-}, [runId]);
+    if (runId) {
+      setSelectedRunId(runId);
+    }
+  }, [runId]);
 
   useEffect(() => {
     if (runId && runId !== selectedRunId) {
@@ -195,9 +193,7 @@ function RunUploadPanel({
   const selectedFilesMetadata = useMemo(() => {
     const firstSelectedLoadFile = loadFiles?.[0]?.name;
     const firstSelectedCountersFile = countersFiles?.[0]?.name;
-
-    const firstSelectedFile =
-      firstSelectedLoadFile || firstSelectedCountersFile;
+    const firstSelectedFile = firstSelectedLoadFile || firstSelectedCountersFile;
 
     return parseMetadataFromFilename(firstSelectedFile);
   }, [loadFiles, countersFiles]);
@@ -211,6 +207,18 @@ function RunUploadPanel({
 
     return selectedFilesMetadata;
   }, [runFiles, selectedFilesMetadata]);
+
+  const safeSelectedRunId = useMemo(() => {
+    if (!selectedRunId) {
+      return "";
+    }
+
+    const existsInList = runs.some(
+      (run) => normalizeRunId(run) === selectedRunId
+    );
+
+    return existsInList ? selectedRunId : "";
+  }, [runs, selectedRunId]);
 
   function buildReportLabel(run) {
     const currentRunId = normalizeRunId(run);
@@ -247,10 +255,7 @@ function RunUploadPanel({
         return currentRuns;
       }
 
-      return [
-        { id: newRunId },
-        ...currentRuns,
-      ];
+      return [{ id: newRunId }, ...currentRuns];
     });
 
     setRunsFilesMap((current) => ({
@@ -264,71 +269,58 @@ function RunUploadPanel({
     }));
   }
 
-async function loadRuns(keepSelectedRunId = null) {
-  try {
-    const response = await api.get("/runs");
+  async function loadRuns(keepSelectedRunId = null) {
+    try {
+      const response = await api.get("/runs");
+      const runsData = response.data || [];
+      const orderedRuns = sortRunsByNewest(runsData);
+      const filesMap = {};
 
-    const runsData = response.data || [];
+      for (const run of orderedRuns) {
+        const currentRunId = normalizeRunId(run);
 
-    const orderedRuns = sortRunsByNewest(runsData);
+        if (!currentRunId) {
+          continue;
+        }
 
-    const filesMap = {};
+        try {
+          const filesResponse = await api.get(
+            `/runs/${currentRunId}/files`
+          );
 
-    for (const run of orderedRuns) {
-      const currentRunId = normalizeRunId(run);
+          filesMap[currentRunId] = filesResponse.data;
+        } catch (error) {
+          console.error(
+            `Could not load files for ${currentRunId}`,
+            error
+          );
 
-      if (!currentRunId) {
-        continue;
+          filesMap[currentRunId] = {
+            run_id: currentRunId,
+            load_files: [],
+            counters_files: [],
+            metadata: {},
+          };
+        }
       }
 
-      try {
-        const filesResponse = await api.get(
-          `/runs/${currentRunId}/files`
-        );
+      setRunsFilesMap(filesMap);
+      setRuns(orderedRuns);
 
-        filesMap[currentRunId] = filesResponse.data;
-      } catch (error) {
-        console.error(
-          `Could not load files for ${currentRunId}`,
-          error
-        );
-
-        filesMap[currentRunId] = {
-          run_id: currentRunId,
-          load_files: [],
-          counters_files: [],
-          metadata: {},
-        };
+      if (
+        keepSelectedRunId &&
+        orderedRuns.some((run) => normalizeRunId(run) === keepSelectedRunId)
+      ) {
+        setSelectedRunId(keepSelectedRunId);
       }
+    } catch (error) {
+      console.error(error);
+
+      setErrorMessage(
+        getApiErrorMessage(error, "Could not load reports.")
+      );
     }
-
-    setRunsFilesMap(filesMap);
-
-    // IMPORTANT: update reports AFTER map
-    setRuns(orderedRuns);
-
-    // preserve selected report
-    if (
-      keepSelectedRunId &&
-      orderedRuns.some(
-        (r) =>
-          normalizeRunId(r) === keepSelectedRunId
-      )
-    ) {
-      setSelectedRunId(keepSelectedRunId);
-    }
-
-  } catch (error) {
-    console.error(error);
-
-    setErrorMessage(
-      getApiErrorMessage(
-        error,
-        "Could not load reports."
-      )
-    );
   }
-}
 
   async function loadRunFiles(currentRunId) {
     if (!currentRunId) {
@@ -357,75 +349,49 @@ async function loadRuns(keepSelectedRunId = null) {
   }
 
   async function createRun() {
-  setCreatingRun(true);
-  setMessage("");
-  setErrorMessage("");
+    setCreatingRun(true);
+    setMessage("");
+    setErrorMessage("");
 
-  try {
-    const response = await api.post("/runs/create");
+    try {
+      const response = await api.post("/runs/create");
+      const newRunId = response.data.run_id;
 
-    const newRunId = response.data.run_id;
+      addTemporaryRunToList(newRunId);
+      setSelectedRunId(newRunId);
 
-    addTemporaryRunToList(newRunId);
+      setRunFiles({
+        run_id: newRunId,
+        load_files: [],
+        counters_files: [],
+        metadata: {},
+      });
 
-    setSelectedRunId(newRunId);
+      setLoadFiles([]);
+      setCountersFiles([]);
+      setProcessesFile(null);
 
-    setRunFiles({
-      run_id: newRunId,
-      load_files: [],
-      counters_files: [],
-      metadata: {},
-    });
+      if (onRunChange) {
+        onRunChange(newRunId);
+      }
 
-    setLoadFiles([]);
-    setCountersFiles([]);
-    setProcessesFile(null);
+      setMessage(
+        "New report was prepared. Upload the first file to complete the report information."
+      );
 
-    if (onRunChange) {
-      onRunChange(newRunId);
+      await loadRuns(newRunId);
+      await loadRunFiles(newRunId);
+      setSelectedRunId(newRunId);
+    } catch (error) {
+      console.error(error);
+
+      setErrorMessage(
+        getApiErrorMessage(error, "Could not prepare a new report.")
+      );
+    } finally {
+      setCreatingRun(false);
     }
-
-    setMessage(
-      "New report was prepared. Upload the first file to complete the report information."
-    );
-
-    await loadRuns(newRunId);
-    await loadRunFiles(newRunId);
-
-    setSelectedRunId(newRunId);
-
-    // GARANTE QUE O NOVO REPORT CONTINUE SELECIONADO
-    setSelectedRunId(newRunId);
-
-    setRunFiles({
-      run_id: newRunId,
-      load_files: [],
-      counters_files: [],
-      metadata: {},
-    });
-
-  } catch (error) {
-    console.error(error);
-
-    setErrorMessage(
-      getApiErrorMessage(
-        error,
-        "Could not prepare a new report."
-      )
-    );
-    console.log(
-        "NEW REPORT CREATED:",
-        newRunId
-      );
-
-      console.log(
-        "SELECTED REPORT:",
-        newRunId
-      );
-  } finally {
-    setCreatingRun(false);
   }
-}
 
   async function ensureRunExists() {
     if (selectedRunId) {
@@ -436,7 +402,6 @@ async function loadRuns(keepSelectedRunId = null) {
     const newRunId = response.data.run_id;
 
     addTemporaryRunToList(newRunId);
-
     setSelectedRunId(newRunId);
 
     setRunFiles({
@@ -458,7 +423,7 @@ async function loadRuns(keepSelectedRunId = null) {
       "New report was created automatically. Upload completed using this report."
     );
 
-    await loadRuns();
+    await loadRuns(newRunId);
     await loadRunFiles(newRunId);
 
     return newRunId;
@@ -479,11 +444,10 @@ async function loadRuns(keepSelectedRunId = null) {
     try {
       for (const file of loadFiles) {
         const formData = new FormData();
-
         formData.append("file", file);
 
         await api.post(
-        `/runs/${currentRunId}/upload/load`,
+  `/runs/${currentRunId}/upload/load-file`,
           formData,
           {
             headers: {
@@ -497,8 +461,7 @@ async function loadRuns(keepSelectedRunId = null) {
       setLoadFiles([]);
 
       await loadRunFiles(currentRunId);
-      await loadRuns();
-
+      await loadRuns(currentRunId);
       setSelectedRunId(currentRunId);
 
       if (onRunChange) {
@@ -510,6 +473,7 @@ async function loadRuns(keepSelectedRunId = null) {
       }
     } catch (error) {
       console.error(error);
+
       setErrorMessage(
         getApiErrorMessage(error, "Could not upload Load files.")
       );
@@ -533,7 +497,6 @@ async function loadRuns(keepSelectedRunId = null) {
     try {
       for (const file of countersFiles) {
         const formData = new FormData();
-
         formData.append("file", file);
 
         await api.post(
@@ -551,8 +514,7 @@ async function loadRuns(keepSelectedRunId = null) {
       setCountersFiles([]);
 
       await loadRunFiles(currentRunId);
-      await loadRuns();
-
+      await loadRuns(currentRunId);
       setSelectedRunId(currentRunId);
 
       if (onRunChange) {
@@ -564,6 +526,7 @@ async function loadRuns(keepSelectedRunId = null) {
       }
     } catch (error) {
       console.error(error);
+
       setErrorMessage(
         getApiErrorMessage(error, "Could not upload Counters files.")
       );
@@ -573,63 +536,51 @@ async function loadRuns(keepSelectedRunId = null) {
   }
 
   async function uploadProcessesFile() {
-  if (!processesFile) {
-    setErrorMessage(
-      "Please select a Processes JSON file."
-    );
-    return;
-  }
-
-  const currentRunId =
-    await ensureRunExists();
-
-  setUploadingProcesses(true);
-
-  setMessage("");
-  setErrorMessage("");
-
-  try {
-    const formData = new FormData();
-
-    formData.append(
-      "file",
-      processesFile
-    );
-
-    await api.post(
-      `/runs/${currentRunId}/upload/processes-file`,
-      formData,
-      {
-        headers: {
-          "Content-Type":
-            "multipart/form-data",
-        },
-      }
-    );
-
-    setMessage(
-      "Processes JSON uploaded successfully."
-    );
-
-    setProcessesFile(null);
-
-    await loadRunFiles(currentRunId);
-
-    if (onRunDataChanged) {
-      await onRunDataChanged(
-        currentRunId
-      );
+    if (!processesFile) {
+      setErrorMessage("Please select a Processes JSON file.");
+      return;
     }
-  } catch (error) {
-    console.error(error);
 
-    setErrorMessage(
-      getApiErrorMessage(error, "Could not upload Processes JSON.")
-    );
-  } finally {
-    setUploadingProcesses(false);
+    const currentRunId = await ensureRunExists();
+
+    setUploadingProcesses(true);
+    setMessage("");
+    setErrorMessage("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", processesFile);
+
+      await api.post(
+        `/runs/${currentRunId}/upload/processes-file`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      setMessage("Processes JSON uploaded successfully.");
+      setProcessesFile(null);
+
+      await loadRunFiles(currentRunId);
+      await loadRuns(currentRunId);
+      setSelectedRunId(currentRunId);
+
+      if (onRunDataChanged) {
+        await onRunDataChanged(currentRunId);
+      }
+    } catch (error) {
+      console.error(error);
+
+      setErrorMessage(
+        getApiErrorMessage(error, "Could not upload Processes JSON.")
+      );
+    } finally {
+      setUploadingProcesses(false);
+    }
   }
-}
 
   async function handleRunChange(currentSelectedRunId) {
     setSelectedRunId(currentSelectedRunId);
@@ -697,7 +648,7 @@ async function loadRuns(keepSelectedRunId = null) {
           <InputLabel>Selected Report</InputLabel>
 
           <Select
-            value={selectedRunId || ""}
+            value={safeSelectedRunId}
             label="Selected Report"
             onChange={(event) => handleRunChange(event.target.value)}
             renderValue={(selected) => {
@@ -731,7 +682,7 @@ async function loadRuns(keepSelectedRunId = null) {
         <Button
           variant="outlined"
           startIcon={<RefreshIcon />}
-          onClick={loadRuns}
+          onClick={() => loadRuns(selectedRunId)}
           sx={{
             borderRadius: 3,
             fontWeight: "bold",
@@ -871,9 +822,9 @@ async function loadRuns(keepSelectedRunId = null) {
 
         {loadFiles.length > 0 && (
           <Box>
-            {loadFiles.map((file) => (
+            {loadFiles.map((file, index) => (
               <Chip
-                key={file.name}
+                key={`${file.name}-${index}`}
                 label={file.name}
                 sx={{ mr: 1, mb: 1 }}
                 variant="outlined"
@@ -943,81 +894,11 @@ async function loadRuns(keepSelectedRunId = null) {
           </Stack>
         </Box>
 
-<Divider />
-
-<Box>
-  <Typography
-    variant="h6"
-    fontWeight="bold"
-    sx={{ mb: 1 }}
-  >
-    Processes JSON
-  </Typography>
-
-  <Stack
-    direction={{
-      xs: "column",
-      md: "row",
-    }}
-    spacing={2}
-    alignItems={{
-      xs: "stretch",
-      md: "center",
-    }}
-  >
-    <Button
-      variant="outlined"
-      component="label"
-      startIcon={<CloudUploadIcon />}
-      sx={{
-        borderRadius: 3,
-        fontWeight: "bold",
-      }}
-    >
-      Select Processes JSON
-
-      <input
-        hidden
-        type="file"
-        accept=".json"
-        onChange={(event) => {
-          setProcessesFile(
-            event.target.files?.[0] || null
-          );
-
-          setMessage("");
-          setErrorMessage("");
-        }}
-      />
-    </Button>
-
-    <Typography color="text.secondary">
-      {processesFile
-        ? processesFile.name
-        : "No file selected"}
-    </Typography>
-
-    <Button
-      variant="contained"
-      onClick={uploadProcessesFile}
-      disabled={uploadingProcesses}
-      sx={{
-        borderRadius: 3,
-        fontWeight: "bold",
-      }}
-    >
-      {uploadingProcesses
-        ? "Uploading..."
-        : "Upload Processes"}
-    </Button>
-  </Stack>
-</Box>
-
         {countersFiles.length > 0 && (
           <Box>
-            {countersFiles.map((file) => (
+            {countersFiles.map((file, index) => (
               <Chip
-                key={file.name}
+                key={`${file.name}-${index}`}
                 label={file.name}
                 sx={{ mr: 1, mb: 1 }}
                 variant="outlined"
@@ -1025,6 +906,63 @@ async function loadRuns(keepSelectedRunId = null) {
             ))}
           </Box>
         )}
+
+        <Divider />
+
+        <Box>
+          <Typography
+            variant="h6"
+            fontWeight="bold"
+            sx={{ mb: 1 }}
+          >
+            Processes JSON
+          </Typography>
+
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            spacing={2}
+            alignItems={{ xs: "stretch", md: "center" }}
+          >
+            <Button
+              variant="outlined"
+              component="label"
+              startIcon={<CloudUploadIcon />}
+              sx={{
+                borderRadius: 3,
+                fontWeight: "bold",
+              }}
+            >
+              Select Processes JSON
+
+              <input
+                hidden
+                type="file"
+                accept=".json"
+                onChange={(event) => {
+                  setProcessesFile(event.target.files?.[0] || null);
+                  setMessage("");
+                  setErrorMessage("");
+                }}
+              />
+            </Button>
+
+            <Typography color="text.secondary">
+              {processesFile ? processesFile.name : "No file selected"}
+            </Typography>
+
+            <Button
+              variant="contained"
+              onClick={uploadProcessesFile}
+              disabled={uploadingProcesses}
+              sx={{
+                borderRadius: 3,
+                fontWeight: "bold",
+              }}
+            >
+              {uploadingProcesses ? "Uploading..." : "Upload Processes"}
+            </Button>
+          </Stack>
+        </Box>
       </Stack>
 
       {runFiles && (
@@ -1039,9 +977,9 @@ async function loadRuns(keepSelectedRunId = null) {
 
           <Box sx={{ mt: 1, mb: 2 }}>
             {runFiles.load_files && runFiles.load_files.length > 0 ? (
-              runFiles.load_files.map((file) => (
+              runFiles.load_files.map((file, index) => (
                 <Chip
-                  key={file}
+                  key={`${file}-${index}`}
                   label={file}
                   color="primary"
                   variant="outlined"
@@ -1058,11 +996,10 @@ async function loadRuns(keepSelectedRunId = null) {
           <Typography fontWeight="bold">Counters files:</Typography>
 
           <Box sx={{ mt: 1 }}>
-            {runFiles.counters_files &&
-            runFiles.counters_files.length > 0 ? (
-              runFiles.counters_files.map((file) => (
+            {runFiles.counters_files && runFiles.counters_files.length > 0 ? (
+              runFiles.counters_files.map((file, index) => (
                 <Chip
-                  key={file}
+                  key={`${file}-${index}`}
                   label={file}
                   color="secondary"
                   variant="outlined"
@@ -1076,10 +1013,7 @@ async function loadRuns(keepSelectedRunId = null) {
             )}
           </Box>
 
-          <Typography
-            fontWeight="bold"
-            sx={{ mt: 2 }}
-          >
+          <Typography fontWeight="bold" sx={{ mt: 2 }}>
             Processes JSON:
           </Typography>
 
@@ -1091,9 +1025,7 @@ async function loadRuns(keepSelectedRunId = null) {
                 variant="outlined"
               />
             ) : (
-              <Typography
-                color="text.secondary"
-              >
+              <Typography color="text.secondary">
                 No Processes JSON uploaded yet.
               </Typography>
             )}

@@ -771,40 +771,49 @@ async def upload_run_counters_file(
 # inside uploads/{run_id}/.
 
 @app.post("/runs/{run_id}/upload/load")
+@app.post("/runs/{run_id}/upload/load")
 async def upload_run_load(
     run_id: str,
     file: UploadFile = File(...),
 ):
-    """
-    Legacy endpoint for uploading a single load.csv file to a run folder.
-    """
+    try:
 
-    run_folder = Path(
-        f"uploads/{run_id}"
-    )
+        ensure_run_folders(run_id)
 
-    run_folder.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+        load_folder = get_run_load_folder(
+            run_id
+        )
 
-    path = run_folder / "load.csv"
+        file_path = (
+            load_folder / file.filename
+        )
 
-    contents = await file.read()
+        contents = await file.read()
 
-    with open(path, "wb") as buffer:
-        buffer.write(contents)
+        with open(
+            file_path,
+            "wb",
+        ) as buffer:
 
-    save_run_metadata_from_filename(
-        run_id,
-        file.filename,
-    )
+            buffer.write(contents)
 
-    return {
-        "message": "Load uploaded",
-        "run_id": run_id,
-    }
+        save_run_metadata_from_filename(
+            run_id,
+            file.filename,
+        )
 
+        return {
+            "message": "Load file uploaded successfully",
+            "run_id": run_id,
+            "file": file.filename,
+        }
+
+    except Exception as error:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(error),
+        )
 
 @app.post("/runs/{run_id}/upload/counters")
 async def upload_run_counters(

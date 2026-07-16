@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -22,27 +23,50 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import WarningIcon from "@mui/icons-material/Warning";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+
+import { useNavigate } from "react-router-dom";
 import api from "../services/api";
-import { Link, useNavigate } from "react-router-dom";
 
 function CompareReportsPage() {
   const navigate = useNavigate();
+
   const [reports, setReports] = useState([]);
   const [reportA, setReportA] = useState("");
   const [reportB, setReportB] = useState("");
   const [comparisonData, setComparisonData] = useState(null);
+
   const [loadingReports, setLoadingReports] = useState(true);
   const [comparing, setComparing] = useState(false);
+
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+
   const [searchText, setSearchText] = useState("");
   const [resultFilter, setResultFilter] = useState("All");
+
+  const [reportSearchA, setReportSearchA] = useState("");
+  const [reportSearchB, setReportSearchB] = useState("");
+
+  const [versionFilter, setVersionFilter] =
+  useState("ALL");
+
+const [buildFilter, setBuildFilter] =
+  useState("ALL");
+
+const [suiteFilter, setSuiteFilter] =
+  useState("ALL");
+
+const [environmentFilter, setEnvironmentFilter] =
+  useState("ALL");
 
   useEffect(() => {
     loadReports();
@@ -58,18 +82,35 @@ function CompareReportsPage() {
 
       setReports(data);
 
-      if (data.length >= 2) {
-        const firstReport = normalizeRunId(data[0]);
-        const secondReport = normalizeRunId(data[1]);
+      // Reset screen
+      setReportA("");
+      setReportB("");
 
-        setReportA(firstReport);
-        setReportB(secondReport);
-      }
+      setReportSearchA("");
+      setReportSearchB("");
+
+      setVersionFilter("ALL");
+      setBuildFilter("ALL");
+      setSuiteFilter("ALL");
+      setEnvironmentFilter("ALL");
+
+      setComparisonData(null);
+
+      if (data.length >= 2) {
+  const firstReport = normalizeRunId(data[0]);
+  const secondReport = normalizeRunId(data[1]);
+
+  setReportA(firstReport);
+  setReportB(secondReport);
+}
+
     } catch (error) {
       console.error(error);
+
       setErrorMessage(
         "Could not load reports. Please check if the backend endpoint /reports is working."
       );
+
       setReports([]);
     } finally {
       setLoadingReports(false);
@@ -81,7 +122,7 @@ function CompareReportsPage() {
       return report;
     }
 
-    return report.run_id || report.runId || report.id || report.name || "";
+    return report?.run_id || report?.runId || report?.id || report?.name || "";
   }
 
   function buildReportLabel(report) {
@@ -91,30 +132,11 @@ function CompareReportsPage() {
 
     const runId = normalizeRunId(report);
 
-    const version =
-      report.version ||
-      report.Version ||
-      "-";
-
-    const build =
-      report.build ||
-      report.Build ||
-      "-";
-
-    const suite =
-      report.suite ||
-      report.Suite ||
-      "-";
-
-    const environment =
-      report.environment ||
-      report.Environment ||
-      "-";
-
-    const date =
-      report.date ||
-      report.Date ||
-      "-";
+    const version = report.version || report.Version || "-";
+    const build = report.build || report.Build || "-";
+    const suite = report.suite || report.Suite || "-";
+    const environment = report.environment || report.Environment || "-";
+    const date = report.date || report.Date || "-";
 
     const hasMetadata =
       version !== "-" ||
@@ -127,23 +149,58 @@ function CompareReportsPage() {
       return runId;
     }
 
-    return [
-      version,
-      build,
-      suite,
-      environment,
-      date,
-    ]
+    return [version, build, suite, environment, date]
       .filter(Boolean)
       .join(" | ");
   }
 
-  function getReportByRunId(runId) {
-    return reports.find(
-      (report) => normalizeRunId(report) === runId
-    );
+  function buildReportSearchText(report) {
+    const runId = normalizeRunId(report);
+    const label = buildReportLabel(report);
+
+    return [
+      runId,
+      label,
+      report?.version,
+      report?.Version,
+      report?.build,
+      report?.Build,
+      report?.suite,
+      report?.Suite,
+      report?.environment,
+      report?.Environment,
+      report?.date,
+      report?.Date,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
   }
 
+  function getReportByRunId(runId) {
+    return reports.find((report) => normalizeRunId(report) === runId) || null;
+  }
+
+function filterReportsBySearch(
+  sourceReports,
+  searchValue
+) {
+
+  const search =
+    String(searchValue || "")
+      .trim()
+      .toLowerCase();
+
+  if (!search) {
+    return sourceReports;
+  }
+
+  return sourceReports.filter(
+    (report) =>
+      buildReportSearchText(report)
+        .includes(search)
+  );
+}
   async function handleCompare() {
     if (!reportA || !reportB) {
       setErrorMessage("Please select two reports to compare.");
@@ -174,6 +231,7 @@ function CompareReportsPage() {
     } catch (error) {
       console.error(error);
       setComparisonData(null);
+
       setErrorMessage(
         "Could not compare reports. Please check if the backend endpoint /reports/compare is working."
       );
@@ -181,6 +239,73 @@ function CompareReportsPage() {
       setComparing(false);
     }
   }
+
+  function exportExcel() {
+
+  if (!comparisonRows.length) {
+    return;
+  }
+
+  const rows = comparisonRows.map(
+    (row) => ({
+      Action: row.action,
+      KPI: row.kpi,
+
+      Report_A_P90:
+        row.report_a?.p90,
+
+      Report_A_Status:
+        row.report_a?.status,
+
+      Report_B_P90:
+        row.report_b?.p90,
+
+      Report_B_Status:
+        row.report_b?.status,
+
+      Diff_ms:
+        row.difference_ms,
+
+      Diff_Percent:
+        row.difference_percent,
+
+      Result:
+        row.result,
+    })
+  );
+
+  const worksheet =
+    XLSX.utils.json_to_sheet(rows);
+
+  const workbook =
+    XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    worksheet,
+    "Comparison"
+  );
+
+  const excelBuffer =
+    XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "array",
+    });
+
+  const blob = new Blob(
+    [excelBuffer],
+    {
+      type:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }
+  );
+
+  saveAs(
+    blob,
+    `Compare_${reportA}_vs_${reportB}.xlsx`
+  );
+}
+
 
   function getNumber(value) {
     const numberValue = Number(value);
@@ -263,9 +388,150 @@ function CompareReportsPage() {
     return "N/A";
   }
 
+  const availableVersions =
+  useMemo(() => {
+
+    return [
+      ...new Set(
+        reports
+          .map(
+            r =>
+              r.version ||
+              r.Version
+          )
+          .filter(Boolean)
+      ),
+    ].sort();
+
+  }, [reports]);
+
+const availableBuilds =
+  useMemo(() => {
+
+    return [
+      ...new Set(
+        reports
+          .map(
+            r =>
+              r.build ||
+              r.Build
+          )
+          .filter(Boolean)
+      ),
+    ].sort();
+
+  }, [reports]);
+
+const availableSuites =
+  useMemo(() => {
+
+    return [
+      ...new Set(
+        reports
+          .map(
+            r =>
+              r.suite ||
+              r.Suite
+          )
+          .filter(Boolean)
+      ),
+    ].sort();
+
+  }, [reports]);
+
+const availableEnvironments =
+  useMemo(() => {
+
+    return [
+      ...new Set(
+        reports
+          .map(
+            r =>
+              r.environment ||
+              r.Environment
+          )
+          .filter(Boolean)
+      ),
+    ].sort();
+
+  }, [reports]);
+
+const metadataFilteredReports = useMemo(() => {
+
+    return reports.filter(
+      (report) => {
+
+        const version =
+          report.version ||
+          report.Version;
+
+        const build =
+          report.build ||
+          report.Build;
+
+        const suite =
+          report.suite ||
+          report.Suite;
+
+        const environment =
+          report.environment ||
+          report.Environment;
+
+        return (
+          (versionFilter === "ALL" ||
+            version === versionFilter) &&
+
+          (buildFilter === "ALL" ||
+            build === buildFilter) &&
+
+          (suiteFilter === "ALL" ||
+            suite === suiteFilter) &&
+
+          (environmentFilter === "ALL" ||
+            environment === environmentFilter)
+
+        );
+      }
+    );
+
+  }, [
+    reports,
+    versionFilter,
+    buildFilter,
+    suiteFilter,
+    environmentFilter,
+  ]);
+
+    const filteredReportsA =
+  useMemo(
+    () =>
+      filterReportsBySearch(
+        metadataFilteredReports,
+        reportSearchA
+      ),
+    [
+      metadataFilteredReports,
+      reportSearchA,
+    ]
+  );
+    
+
+const filteredReportsB =
+  useMemo(
+    () =>
+      filterReportsBySearch(
+        metadataFilteredReports,
+        reportSearchB
+      ),
+    [
+      metadataFilteredReports,
+      reportSearchB,
+    ]
+  );
+
+
   const comparisonRows = useMemo(() => {
     const rows = comparisonData?.comparison || [];
-
     const search = searchText.trim().toLowerCase();
 
     return rows
@@ -277,8 +543,7 @@ function CompareReportsPage() {
             .includes(search);
 
         const resultMatch =
-          resultFilter === "All" ||
-          row.result === resultFilter;
+          resultFilter === "All" || row.result === resultFilter;
 
         return actionMatch && resultMatch;
       })
@@ -321,13 +586,8 @@ function CompareReportsPage() {
     ).length;
   }, [comparisonData]);
 
-  const reportALabel = buildReportLabel(
-    getReportByRunId(reportA)
-  );
-
-  const reportBLabel = buildReportLabel(
-    getReportByRunId(reportB)
-  );
+  const reportALabel = buildReportLabel(getReportByRunId(reportA));
+  const reportBLabel = buildReportLabel(getReportByRunId(reportB));
 
   if (loadingReports) {
     return (
@@ -352,24 +612,24 @@ function CompareReportsPage() {
   }
 
   return (
-    <Box sx={{ background:"linear-gradient(135deg,#FFFFFF 0%, #F1F8E9 100%)"}}>
+    <Box
+      sx={{
+        background: "linear-gradient(135deg,#FFFFFF 0%, #F1F8E9 100%)",
+        minHeight: "100vh",
+        py: 4,
+      }}
+    >
       <Container maxWidth="xl">
         <Paper
-  sx={{
-    p: 4,
-    mb: 4,
-
-    borderRadius: 8,
-
-    background:
-      "linear-gradient(135deg,#FFFFFF 0%, #F8FBF8 100%)",
-
-    border: "1px solid #E8F5E9",
-
-    boxShadow:
-      "0 8px 24px rgba(0,0,0,0.05)",
-  }}
->
+          sx={{
+            p: 4,
+            mb: 4,
+            borderRadius: 8,
+            background: "linear-gradient(135deg,#FFFFFF 0%, #F8FBF8 100%)",
+            border: "1px solid #E8F5E9",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
+          }}
+        >
           <Stack
             direction={{ xs: "column", md: "row" }}
             justifyContent="space-between"
@@ -378,58 +638,71 @@ function CompareReportsPage() {
           >
             <Box>
               <Typography
-  variant="h3"
-  fontWeight="bold"
-  sx={{
-    color: "#1C2526",
-  }}
->
-  Compare Reports
-</Typography>
-<Typography
-  sx={{
-    mt: 1,
-    color: "#607D8B",
-  }}
->                Compare KPI results between two performance reports.
+                variant="h3"
+                fontWeight="bold"
+                sx={{
+                  color: "#1C2526",
+                }}
+              >
+                Compare Reports
+              </Typography>
+
+              <Typography
+                sx={{
+                  mt: 1,
+                  color: "#607D8B",
+                }}
+              >
+                Compare KPI results between two performance reports.
               </Typography>
             </Box>
 
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
               <Button
-  startIcon={<ArrowBackIcon />}
-  onClick={() => navigate("/reports")}
-  sx={{
-    backgroundColor: "#FFFFFF",
-    color: "#2E7D32",
+                startIcon={<ArrowBackIcon />}
+                onClick={() => navigate("/reports")}
+                sx={{
+                  backgroundColor: "#FFFFFF",
+                  color: "#2E7D32",
+                  "&:hover": {
+                    backgroundColor: "#F1F8E9",
+                  },
+                }}
+              >
+                Back to Reports
+              </Button>
 
-    "&:hover": {
-      backgroundColor: "#F1F8E9",
-    },
-  }}
->
-  Back to Reports
-</Button>
+              <Button
+                startIcon={<RefreshIcon />}
+            onClick={() => {
+  loadReports();
 
-             <Button
-  startIcon={<RefreshIcon />}
-  onClick={() => {
-    loadReports();
-    setComparisonData(null);
-    setSuccessMessage("");
-    setErrorMessage("");
-  }}
-  sx={{
-    backgroundColor: "#FFFFFF",
-    color: "#2E7D32",
+  setComparisonData(null);
 
-    "&:hover": {
-      backgroundColor: "#F1F8E9",
-    },
-  }}
->
-  Refresh
-</Button>
+  setReportA("");
+  setReportB("");
+
+  setReportSearchA("");
+  setReportSearchB("");
+
+  setVersionFilter("ALL");
+  setBuildFilter("ALL");
+  setSuiteFilter("ALL");
+  setEnvironmentFilter("ALL");
+
+  setSuccessMessage("");
+  setErrorMessage("");
+}}
+                sx={{
+                  backgroundColor: "#FFFFFF",
+                  color: "#2E7D32",
+                  "&:hover": {
+                    backgroundColor: "#F1F8E9",
+                  },
+                }}
+              >
+                Refresh
+              </Button>
             </Stack>
           </Stack>
         </Paper>
@@ -457,9 +730,14 @@ function CompareReportsPage() {
             Select Reports
           </Typography>
 
-          <Typography color="text.secondary" sx={{ mb: 3 }}>
+          <Typography color="text.secondary" sx={{ mb: 1 }}>
             Choose two different reports. The comparison uses the 90th Percentil
             value from each report summary.
+          </Typography>
+
+          <Typography color="text.secondary" variant="body2" sx={{ mb: 3 }}>
+            {reports.length} report(s) available. Type version, bundle, suite,
+            environment, date or run id to find a report faster.
           </Typography>
 
           <Stack
@@ -467,62 +745,212 @@ function CompareReportsPage() {
             spacing={2}
             alignItems={{ xs: "stretch", md: "center" }}
           >
-            <FormControl fullWidth>
-              <InputLabel>Report A</InputLabel>
-              <Select
-                value={reportA}
-                label="Report A"
-                onChange={(event) => setReportA(event.target.value)}
-              >
-                {reports.map((report) => {
-                  const runId = normalizeRunId(report);
 
-                  return (
-                    <MenuItem key={runId} value={runId}>
-                      {buildReportLabel(report)}
-                    </MenuItem>
-                  );
-                })}
-              </Select>
-            </FormControl>
+            <Stack
+  direction={{
+    xs: "column",
+    md: "row",
+  }}
+  spacing={2}
+  sx={{ mb: 3 }}
+>
 
-            <FormControl fullWidth>
-              <InputLabel>Report B</InputLabel>
-              <Select
-                value={reportB}
-                label="Report B"
-                onChange={(event) => setReportB(event.target.value)}
-              >
-                {reports.map((report) => {
-                  const runId = normalizeRunId(report);
+  {/* Version */}
+  <FormControl fullWidth>
+    <InputLabel>
+      Version
+    </InputLabel>
 
-                  return (
-                    <MenuItem key={runId} value={runId}>
-                      {buildReportLabel(report)}
-                    </MenuItem>
-                  );
-                })}
-              </Select>
-            </FormControl>
+    <Select
+      value={versionFilter}
+      label="Version"
+      onChange={(event) =>
+        setVersionFilter(
+          event.target.value
+        )
+      }
+    >
+      <MenuItem value="ALL">
+        All
+      </MenuItem>
+
+      {availableVersions.map(
+        (item) => (
+          <MenuItem
+            key={item}
+            value={item}
+          >
+            {item}
+          </MenuItem>
+        )
+      )}
+    </Select>
+  </FormControl>
+
+  {/* Build */}
+  <FormControl fullWidth>
+    <InputLabel>
+      Build
+    </InputLabel>
+
+    <Select
+      value={buildFilter}
+      label="Build"
+      onChange={(event) =>
+        setBuildFilter(
+          event.target.value
+        )
+      }
+    >
+      <MenuItem value="ALL">
+        All
+      </MenuItem>
+
+      {availableBuilds.map(
+        (item) => (
+          <MenuItem
+            key={item}
+            value={item}
+          >
+            {item}
+          </MenuItem>
+        )
+      )}
+    </Select>
+  </FormControl>
+
+  {/* Suite */}
+  <FormControl fullWidth>
+    <InputLabel>
+      Suite
+    </InputLabel>
+
+    <Select
+      value={suiteFilter}
+      label="Suite"
+      onChange={(event) =>
+        setSuiteFilter(
+          event.target.value
+        )
+      }
+    >
+      <MenuItem value="ALL">
+        All
+      </MenuItem>
+
+      {availableSuites.map(
+        (item) => (
+          <MenuItem
+            key={item}
+            value={item}
+          >
+            {item}
+          </MenuItem>
+        )
+      )}
+    </Select>
+  </FormControl>
+
+  {/* Environment */}
+  <FormControl fullWidth>
+    <InputLabel>
+      Environment
+    </InputLabel>
+
+    <Select
+      value={environmentFilter}
+      label="Environment"
+      onChange={(event) =>
+        setEnvironmentFilter(
+          event.target.value
+        )
+      }
+    >
+      <MenuItem value="ALL">
+        All
+      </MenuItem>
+
+      {availableEnvironments.map(
+        (item) => (
+          <MenuItem
+            key={item}
+            value={item}
+          >
+            {item}
+          </MenuItem>
+        )
+      )}
+    </Select>
+  </FormControl>
+
+</Stack>
+
+            <Autocomplete
+              fullWidth
+              options={filteredReportsA}
+              value={getReportByRunId(reportA)}
+              inputValue={reportSearchA}
+              getOptionLabel={(option) => buildReportLabel(option)}
+              isOptionEqualToValue={(option, value) =>
+                normalizeRunId(option) === normalizeRunId(value)
+              }
+              noOptionsText="No reports found"
+              onInputChange={(_, newInputValue) => {
+                setReportSearchA(newInputValue);
+              }}
+              onChange={(_, selectedReport) => {
+                setReportA(selectedReport ? normalizeRunId(selectedReport) : "");
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Report A"
+                  placeholder="Search by version, bundle, SESRM, environment or date"
+                />
+              )}
+            />
+
+            <Autocomplete
+              fullWidth
+              options={filteredReportsB}
+              value={getReportByRunId(reportB)}
+              inputValue={reportSearchB}
+              getOptionLabel={(option) => buildReportLabel(option)}
+              isOptionEqualToValue={(option, value) =>
+                normalizeRunId(option) === normalizeRunId(value)
+              }
+              noOptionsText="No reports found"
+              onInputChange={(_, newInputValue) => {
+                setReportSearchB(newInputValue);
+              }}
+              onChange={(_, selectedReport) => {
+                setReportB(selectedReport ? normalizeRunId(selectedReport) : "");
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Report B"
+                  placeholder="Search by version, bundle, SESRM, environment or date"
+                />
+              )}
+            />
 
             <Button
-  onClick={handleCompare}
-  disabled={comparing}
-  startIcon={<CompareArrowsIcon />}
-  sx={{
-    backgroundColor: "#4CAF50",
-    color: "#FFFFFF",
-
-    minWidth: 160,
-    height: 56,
-
-    "&:hover": {
-      backgroundColor: "#43A047",
-    },
-  }}
->
-  {comparing ? "Comparing..." : "Compare"}
-</Button>
+              onClick={handleCompare}
+              disabled={comparing || reports.length < 2}
+              startIcon={<CompareArrowsIcon />}
+              sx={{
+                backgroundColor: "#4CAF50",
+                color: "#FFFFFF",
+                minWidth: 160,
+                height: 56,
+                "&:hover": {
+                  backgroundColor: "#43A047",
+                },
+              }}
+            >
+              {comparing ? "Comparing..." : "Compare"}
+            </Button>
           </Stack>
         </Paper>
 
@@ -595,18 +1023,14 @@ function CompareReportsPage() {
                   <Typography fontWeight="bold" color="primary">
                     Report A
                   </Typography>
-                  <Typography color="text.secondary">
-                    {reportALabel}
-                  </Typography>
+                  <Typography color="text.secondary">{reportALabel}</Typography>
                 </Box>
 
                 <Box sx={{ flex: 1 }}>
                   <Typography fontWeight="bold" color="primary">
                     Report B
                   </Typography>
-                  <Typography color="text.secondary">
-                    {reportBLabel}
-                  </Typography>
+                  <Typography color="text.secondary">{reportBLabel}</Typography>
                 </Box>
               </Stack>
             </Paper>
@@ -660,6 +1084,15 @@ function CompareReportsPage() {
                 >
                   Clear
                 </Button>
+
+                <Button
+                  variant="contained"
+                  color="success"
+                  onClick={exportExcel}
+                  disabled={!comparisonRows.length}
+                >
+                  Export Excel
+                </Button>
               </Stack>
             </Paper>
 
@@ -683,9 +1116,7 @@ function CompareReportsPage() {
                   <Table size="small">
                     <TableHead>
                       <TableRow sx={{ backgroundColor: "#eef3f8" }}>
-                        <TableCell sx={{ fontWeight: "bold" }}>
-                          Action
-                        </TableCell>
+                        <TableCell sx={{ fontWeight: "bold" }}>Action</TableCell>
                         <TableCell align="right" sx={{ fontWeight: "bold" }}>
                           KPI
                         </TableCell>
@@ -707,19 +1138,14 @@ function CompareReportsPage() {
                         <TableCell align="right" sx={{ fontWeight: "bold" }}>
                           Diff %
                         </TableCell>
-                        <TableCell sx={{ fontWeight: "bold" }}>
-                          Result
-                        </TableCell>
+                        <TableCell sx={{ fontWeight: "bold" }}>Result</TableCell>
                       </TableRow>
                     </TableHead>
 
                     <TableBody>
                       {comparisonRows.map((row, index) => {
-                        const reportAStatus =
-                          row.report_a?.status || "NO KPI";
-
-                        const reportBStatus =
-                          row.report_b?.status || "NO KPI";
+                        const reportAStatus = row.report_a?.status || "NO KPI";
+                        const reportBStatus = row.report_b?.status || "NO KPI";
 
                         return (
                           <TableRow key={`${row.action}-${index}`} hover>
@@ -794,8 +1220,7 @@ function CompareReportsPage() {
                 </Typography>
 
                 <Typography color="text.secondary">
-                  Ordered by regressions first, then highest percentage
-                  difference.
+                  Ordered by regressions first, then highest percentage difference.
                 </Typography>
               </Stack>
             </Paper>

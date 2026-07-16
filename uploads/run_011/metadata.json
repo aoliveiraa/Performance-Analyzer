@@ -1,9 +1,9 @@
 {
   "version": "vNP6.1.36",
-  "build": "Bundle 36.CA.B16477 Endurance",
-  "suite": "SESRM 3403",
-  "environment": "Lab-RDI-US-RIO",
-  "date_raw": "20260612",
-  "date": "6/12/2026",
-  "source_file": "vNP6.1.36_Bundle 36.CA.B16477 Endurance_SESRM 3403 - CA 36 Endurance - MFY_Lab-RDI-US-RIO_20260612.csv"
+  "build": "Bundle 36.UK.B32435 Load",
+  "suite": "SESRM 3506",
+  "environment": "Lab-RDI-Brazil",
+  "date_raw": "20260710",
+  "date": "7/10/2026",
+  "source_file": "vNP6.1.36_Bundle 36.UK.B32435 Load_SESRM 3506 - MFY_Lab-RDI-Brazil_20260710.csv"
 }
