@@ -1469,3 +1469,53 @@ def test_counters():
             "test-counters",
             error,
         )
+    
+
+@app.post("/runs/create")
+def create_new_run():
+
+    run_id = create_run()
+
+    print("NEW RUN CREATED:", run_id)
+
+    ensure_run_folders(run_id)
+
+    return {
+        "run_id": run_id
+    }
+
+@app.post("/runs/{run_id}/upload/load-file")
+async def upload_run_load_file(
+    run_id: str,
+    file: UploadFile = File(...),
+):
+    try:
+        ensure_run_folders(run_id)
+
+        load_folder = get_run_load_folder(
+            run_id
+        )
+
+        file_path = load_folder / file.filename
+
+        contents = await file.read()
+
+        with open(file_path, "wb") as buffer:
+            buffer.write(contents)
+
+        save_run_metadata_from_filename(
+            run_id,
+            file.filename,
+        )
+
+        return {
+            "message": "Load file uploaded successfully",
+            "run_id": run_id,
+            "file": file.filename,
+        }
+
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=str(error),
+        )

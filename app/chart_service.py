@@ -2,6 +2,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from datetime import datetime
+
 
 # =========================
 # LEGACY CHARTS
@@ -218,6 +220,12 @@ def get_memory_trend_by_run(run_id: str):
     df = prepare_counter_dataframe(
         raw_df
     )
+    print(df.columns.tolist())
+    print(
+    df.head(1).to_dict(
+        orient="records"
+    )
+)
 
     if df.empty:
         return []
@@ -411,6 +419,15 @@ def get_performance_counters_trend_by_run(run_id: str):
     df = prepare_counter_dataframe(
         raw_df
     )
+    print("\n===== COLUMNS =====")
+    print(df.columns.tolist())
+
+    print("\n===== SAMPLE =====")
+    print(
+        df.head(1).to_dict(
+            orient="records"
+        )
+    )
 
     if df.empty:
         return []
@@ -418,6 +435,7 @@ def get_performance_counters_trend_by_run(run_id: str):
     selected_rows = []
 
     for _, row in df.iterrows():
+
         counter_name = str(
             row["CounterName"]
         )
@@ -432,12 +450,40 @@ def get_performance_counters_trend_by_run(run_id: str):
         if matched_counter is None:
             continue
 
+        # =====================================
+        # NOVO CÓDIGO
+        # =====================================
+
+        action_time = str(
+            row["ActionStartTime"]
+        )
+
+        formatted_time = action_time
+
+        try:
+            formatted_time = datetime.strptime(
+                action_time[:17],
+                "%Y%m%d%H%M%S%f"
+            ).isoformat()
+
+        except Exception:
+            pass
+
+        # =====================================
+        # EXISTENTE
+        # =====================================
+
         selected_rows.append({
-            "hardware": str(row["SourceFile"]),
+            "hardware": str(row["Hardware"]),
+            "action": str(row["ActionName"]),
             "process": str(row["ProcessName"]),
             "counter": matched_counter,
-            "timestamp": str(row["Timestamp"]),
+            "timestamp": formatted_time,
             "value": float(row["Data"]),
         })
 
+    print("\n===== RESULT SAMPLE =====")
+
+    if selected_rows:
+        print(selected_rows[0])
     return selected_rows

@@ -33,12 +33,45 @@ def get_runs():
 
     return runs
 
-
 def create_run():
 
-    runs = get_runs()
+    Path(RUNS_FOLDER).mkdir(
+        parents=True,
+        exist_ok=True
+    )
 
-    next_number = len(runs) + 1
+    existing_numbers = []
+
+    for folder in os.listdir(RUNS_FOLDER):
+
+        path = os.path.join(
+            RUNS_FOLDER,
+            folder
+        )
+
+        if not os.path.isdir(path):
+            continue
+
+        if not folder.startswith("run_"):
+            continue
+
+        try:
+            number = int(
+                folder.replace("run_", "")
+            )
+
+            existing_numbers.append(
+                number
+            )
+
+        except ValueError:
+            continue
+
+    next_number = (
+        max(existing_numbers) + 1
+        if existing_numbers
+        else 1
+    )
 
     run_id = f"run_{next_number:03d}"
 
@@ -53,6 +86,7 @@ def create_run():
     )
 
     return run_id
+
 
 def delete_run(run_id: str):
     run_path = Path(RUNS_FOLDER) / run_id

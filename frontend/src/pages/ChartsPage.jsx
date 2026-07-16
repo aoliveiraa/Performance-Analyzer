@@ -4,9 +4,13 @@ import {
   Button,
   Checkbox,
   Container,
+  FormControl,
   FormControlLabel,
   FormGroup,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
   Typography,
 } from "@mui/material";
 
@@ -26,24 +30,10 @@ const FIXED_COUNTERS = [
 ];
 
 const COUNTER_GROUPS = {
-  Memory: [
-    "Private Bytes",
-    "Working Set",
-  ],
-
-  Process: [
-    "Handle Count",
-    "Thread Count",
-  ],
-
-  IO: [
-    "IO Read Bytes/sec",
-    "IO Write Bytes/sec",
-  ],
-
-  CPU: [
-    "% Processor Time",
-  ],
+  Memory: ["Private Bytes", "Working Set"],
+  Process: ["Handle Count", "Thread Count"],
+  IO: ["IO Read Bytes/sec", "IO Write Bytes/sec"],
+  CPU: ["% Processor Time"],
 };
 
 function ChartsPage() {
@@ -57,6 +47,7 @@ function ChartsPage() {
   const [reportMetadata, setReportMetadata] = useState(null);
 
   const [selectedCounters, setSelectedCounters] = useState([]);
+  const [selectedProcess, setSelectedProcess] = useState("ALL");
 
   const [error, setError] = useState("");
 
@@ -111,10 +102,7 @@ function ChartsPage() {
       }
 
       const data = await response.json();
-
-      setReportMetadata(
-        data?.metadata || null
-      );
+      setReportMetadata(data?.metadata || null);
     } catch (error) {
       console.error(error);
     }
@@ -129,29 +117,24 @@ function ChartsPage() {
       const actionsData = await safeFetchArray(
         `http://localhost:8000/charts/actions/${runId}`
       );
-
       setActions(actionsData);
 
       const statusData = await safeFetchObject(
         `http://localhost:8000/charts/status/${runId}`
       );
-
       setStatus(statusData);
 
       const countersData = await safeFetchArray(
         `http://localhost:8000/charts/performance-counters/${runId}`
       );
-
       setPerformanceCounters(countersData);
 
       const topMemoryData = await safeFetchArray(
         `http://localhost:8000/charts/top-memory/${runId}`
       );
-
       setTopMemory(topMemoryData);
     } catch (err) {
       console.error(err);
-
       setError(
         "Could not load chart data. Please check if backend is running."
       );
@@ -168,84 +151,111 @@ function ChartsPage() {
     });
   }
 
-  const actionData = Array.isArray(actions)
-    ? actions
-    : [];
+  function formatTime(value) {
+    const date = new Date(value);
 
+    if (Number.isNaN(date.getTime())) {
+      return "-";
+    }
+
+    return date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+  }
+
+  function formatCounterValue(value, counter) {
+    const numericValue = Number(value);
+
+    if (Number.isNaN(numericValue)) {
+      return "-";
+    }
+
+    if (
+      counter.includes("Private Bytes") ||
+      counter.includes("Working Set")
+    ) {
+      return `${(numericValue / 1024 / 1024).toFixed(2)} MB`;
+    }
+
+    if (counter.includes("% Processor Time")) {
+      return `${numericValue.toFixed(2)}%`;
+    }
+
+    return numericValue.toLocaleString("en-US");
+  }
+
+  const actionData = Array.isArray(actions) ? actions : [];
   const countersData = Array.isArray(performanceCounters)
     ? performanceCounters
     : [];
+  const topMemoryData = Array.isArray(topMemory) ? topMemory : [];
 
-  const topMemoryData = Array.isArray(topMemory)
-    ? topMemory
-    : [];
-
-  const filteredCountersData = useMemo(
-    () =>
-      countersData.filter((item) =>
-        selectedCounters.includes(item.counter)
+  const availableProcesses = useMemo(() => {
+    return [
+      ...new Set(
+        countersData
+          .map((item) => item.process)
+          .filter(Boolean)
       ),
-    [countersData, selectedCounters]
-  );
+    ].sort();
+  }, [countersData]);
+
+  const filteredCountersData = useMemo(() => {
+    return countersData.filter((item) => {
+      const counterMatch = selectedCounters.includes(item.counter);
+
+      const processMatch =
+        selectedProcess === "ALL" ||
+        item.process === selectedProcess;
+
+      return counterMatch && processMatch;
+    });
+  }, [countersData, selectedCounters, selectedProcess]);
 
   const averageChart = {
     tooltip: {
       trigger: "axis",
     },
-
     legend: {
-      data: [
-        "Average",
-        "90th Percentil",
-        "KPI",
-      ],
+      data: ["Average", "90th Percentil", "KPI"],
       bottom: 0,
     },
-
     grid: {
       left: 70,
       right: 30,
       bottom: 110,
       top: 50,
     },
-
     xAxis: {
       type: "category",
-      data: actionData.map(
-        (item) => item.Action
-      ),
+      data: actionData.map((item) => item.Action),
       axisLabel: {
         rotate: 35,
         interval: 0,
         fontSize: 10,
       },
     },
-
     yAxis: {
       type: "value",
     },
-
     series: [
       {
         name: "Average",
         type: "bar",
-        data: actionData.map(
-          (item) => item.Average
-        ),
+        data: actionData.map((item) => item.Average),
       },
       {
         name: "90th Percentil",
         type: "bar",
-        data: actionData.map(
-          (item) => item["90th Percentil"]
-        ),
+        data: actionData.map((item) => item["90th Percentil"]),
       },
       {
         name: "KPI",
         type: "line",
-        data: actionData.map(
-          (item) => item.KPI
-        ),
+        data: actionData.map((item) => item.KPI),
       },
     ],
   };
@@ -254,11 +264,9 @@ function ChartsPage() {
     tooltip: {
       trigger: "item",
     },
-
     legend: {
       bottom: 0,
     },
-
     series: [
       {
         type: "pie",
@@ -288,27 +296,75 @@ function ChartsPage() {
     const grouped = {};
 
     data.forEach((item) => {
-      const key = `${item.counter} | ${item.process} | ${item.hardware}`;
+      const counter = item.counter || "-";
+      const process = item.process || "-";
+      const hardware = item.hardware || "-";
+      const action = item.action || "-";
+      const timestamp = item.timestamp || "";
+      const value = Number(item.value || 0);
+      const parsedTime = new Date(timestamp).getTime();
+
+      if (Number.isNaN(parsedTime)) {
+        return;
+      }
+
+      const key = `${counter} | ${process} | ${hardware}`;
 
       if (!grouped[key]) {
         grouped[key] = [];
       }
 
-      grouped[key].push([
-        item.timestamp,
-        item.value,
-      ]);
+      grouped[key].push({
+        value: [parsedTime, value],
+        counter,
+        process,
+        hardware,
+        action,
+        timestamp,
+      });
     });
 
     return Object.keys(grouped)
-      .slice(0, 20)
-      .map((key) => ({
-        name: key,
-        type: "line",
-        showSymbol: false,
-        smooth: true,
-        data: grouped[key],
-      }));
+      .map((key) => {
+        grouped[key].sort((a, b) => a.value[0] - b.value[0]);
+
+        return {
+  name: key,
+  type: "line",
+
+  // Keeps the chart visually clean but creates invisible hover points
+  showSymbol: true,
+  symbol: "circle",
+  symbolSize: 10,
+
+  itemStyle: {
+    opacity: 0,
+  },
+
+  smooth: false,
+  connectNulls: true,
+
+  triggerLineEvent: true,
+
+  lineStyle: {
+    width: 3,
+  },
+
+  emphasis: {
+    focus: "series",
+    scale: false,
+    itemStyle: {
+      opacity: 0,
+    },
+    lineStyle: {
+      width: 4,
+    },
+  },
+
+  data: grouped[key],
+};
+
+      });
   }
 
   const countersSeries = useMemo(
@@ -317,33 +373,112 @@ function ChartsPage() {
   );
 
   const performanceCountersChart = {
-    tooltip: {
-      trigger: "axis",
-    },
+    dataZoom: [
+      {
+        type: "inside",
+      },
+      {
+        type: "slider",
+        bottom: 45,
+      },
+    ],
+tooltip: {
+  trigger: "item",
 
+  formatter: (params) => {
+    const data = params.data || {};
+
+    const counter = data.counter || "-";
+    const process = data.process || "-";
+    const hardware = data.hardware || "-";
+    const action = data.action || "-";
+    const timestamp = data.timestamp || "";
+
+    const value =
+      params.value?.[1] ??
+      data.value?.[1] ??
+      0;
+
+    const formattedValue =
+      formatCounterValue(value, counter);
+
+    const formattedTime =
+      formatTime(timestamp);
+
+    return `
+      <b>Time</b><br/>
+      ${formattedTime}
+      <br/><br/>
+
+      <b>Process</b><br/>
+      ${process}
+      <br/><br/>
+
+      <b>Hardware</b><br/>
+      ${hardware}
+      <br/><br/>
+
+      <b>Action</b><br/>
+      ${action}
+      <br/><br/>
+
+      <b>Counter</b><br/>
+      ${counter}
+      <br/><br/>
+
+      <b>Value</b><br/>
+      ${formattedValue}
+    `;
+  },
+},
     legend: {
-      type: "scroll",
-      bottom: 0,
+      show: false,
     },
-
     grid: {
       left: 90,
       right: 30,
-      bottom: 110,
-      top: 40,
+      bottom: 80,
+      top: 30,
+      containLabel: true,
     },
-
     xAxis: {
-      type: "category",
+      type: "time",
+      name: "Timeline",
+      nameLocation: "middle",
+      nameGap: 35,
       axisLabel: {
-        show: false,
+        show: true,
+        formatter: (value) => formatTime(value),
+      },
+      splitLine: {
+        show: true,
       },
     },
-
     yAxis: {
       type: "value",
-    },
+      axisLabel: {
+        formatter: (value) => {
+          const hasOnlyMemoryCounters =
+            selectedCounters.length > 0 &&
+            selectedCounters.every((counter) =>
+              ["Private Bytes", "Working Set"].includes(counter)
+            );
 
+          if (hasOnlyMemoryCounters) {
+            return `${(value / 1024 / 1024).toFixed(0)} MB`;
+          }
+
+          if (
+            selectedCounters.length === 1 &&
+            selectedCounters[0] === "% Processor Time"
+          ) {
+            return `${Number(value).toFixed(0)}%`;
+          }
+
+          return Number(value).toLocaleString("en-US");
+        },
+      },
+    },
     series: countersSeries,
   };
 
@@ -351,23 +486,19 @@ function ChartsPage() {
     tooltip: {
       trigger: "axis",
     },
-
     legend: {
       bottom: 0,
     },
-
     grid: {
       left: 90,
       right: 30,
       bottom: 150,
       top: 50,
     },
-
     xAxis: {
       type: "category",
       data: topMemoryData.map(
-        (item) =>
-          `${item.hardware} | ${item.process}`
+        (item) => `${item.hardware} | ${item.process}`
       ),
       axisLabel: {
         rotate: 25,
@@ -375,123 +506,109 @@ function ChartsPage() {
         fontSize: 10,
       },
     },
-
     yAxis: {
       type: "value",
+      axisLabel: {
+        formatter: (value) => `${(value / 1024 / 1024).toFixed(0)} MB`,
+      },
     },
-
     series: [
       {
         name: "Max Memory",
         type: "bar",
-        data: topMemoryData.map(
-          (item) => item.max
-        ),
+        data: topMemoryData.map((item) => item.max),
       },
       {
         name: "Average Memory",
         type: "bar",
-        data: topMemoryData.map(
-          (item) => item.average
-        ),
+        data: topMemoryData.map((item) => item.average),
       },
     ],
   };
 
-function renderFixedCounterSelector() {
-  return (
-    <Paper
-      variant="outlined"
-      sx={{
-        p: 2,
-        mb: 2,
-        borderRadius: 3,
-        backgroundColor: "#fafafa",
-      }}
-    >
-      <Box
+  function renderFixedCounterSelector() {
+    return (
+      <Paper
+        variant="outlined"
         sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: {
-            xs: "flex-start",
-            md: "center",
-          },
-          flexDirection: {
-            xs: "column",
-            md: "row",
-          },
-          gap: 1,
+          p: 2,
           mb: 2,
+          borderRadius: 3,
+          backgroundColor: "#fafafa",
         }}
       >
-        <Box>
-          <Typography
-            variant="subtitle1"
-            fontWeight="bold"
-          >
-            Performance Counters
-          </Typography>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: {
+              xs: "flex-start",
+              md: "center",
+            },
+            flexDirection: {
+              xs: "column",
+              md: "row",
+            },
+            gap: 1,
+            mb: 2,
+          }}
+        >
+          <Box>
+            <Typography variant="subtitle1" fontWeight="bold">
+              Performance Counters
+            </Typography>
 
-          <Typography
-            variant="body2"
-            color="text.secondary"
+            <Typography variant="body2" color="text.secondary">
+              {selectedCounters.length === 0
+                ? "No counters selected"
+                : `${selectedCounters.length} counter(s) selected`}
+            </Typography>
+          </Box>
+
+          <Box
+            sx={{
+              display: "flex",
+              gap: 1,
+            }}
           >
-            {selectedCounters.length === 0
-              ? "No counters selected"
-              : `${selectedCounters.length} counter(s) selected`}
-          </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => setSelectedCounters(FIXED_COUNTERS)}
+              sx={{
+                textTransform: "none",
+                borderRadius: 2,
+              }}
+            >
+              Select All
+            </Button>
+
+            <Button
+              size="small"
+              variant="outlined"
+              color="warning"
+              onClick={() => setSelectedCounters([])}
+              sx={{
+                textTransform: "none",
+                borderRadius: 2,
+              }}
+            >
+              Clear Selection
+            </Button>
+          </Box>
         </Box>
 
         <Box
           sx={{
-            display: "flex",
-            gap: 1,
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              md: "1fr 1fr",
+            },
+            gap: 2,
           }}
         >
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={() =>
-              setSelectedCounters(FIXED_COUNTERS)
-            }
-            sx={{
-              textTransform: "none",
-              borderRadius: 2,
-            }}
-          >
-            Select All
-          </Button>
-
-          <Button
-            size="small"
-            variant="outlined"
-            color="warning"
-            onClick={() =>
-              setSelectedCounters([])
-            }
-            sx={{
-              textTransform: "none",
-              borderRadius: 2,
-            }}
-          >
-            Clear Selection
-          </Button>
-        </Box>
-      </Box>
-
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: {
-            xs: "1fr",
-            md: "1fr 1fr",
-          },
-          gap: 2,
-        }}
-      >
-        {Object.entries(COUNTER_GROUPS).map(
-          ([groupName, counters]) => (
+          {Object.entries(COUNTER_GROUPS).map(([groupName, counters]) => (
             <Paper
               key={groupName}
               variant="outlined"
@@ -517,20 +634,12 @@ function renderFixedCounterSelector() {
                     control={
                       <Checkbox
                         size="small"
-                        checked={selectedCounters.includes(
-                          counter
-                        )}
-                        onChange={() =>
-                          handleToggleCounter(
-                            counter
-                          )
-                        }
+                        checked={selectedCounters.includes(counter)}
+                        onChange={() => handleToggleCounter(counter)}
                       />
                     }
                     label={
-                      <Typography
-                        variant="body2"
-                      >
+                      <Typography variant="body2">
                         {counter}
                       </Typography>
                     }
@@ -538,32 +647,27 @@ function renderFixedCounterSelector() {
                 ))}
               </FormGroup>
             </Paper>
-          )
-        )}
-      </Box>
-    </Paper>
-  );
-}
+          ))}
+        </Box>
+      </Paper>
+    );
+  }
 
   return (
     <Container maxWidth="xl">
       <Box sx={{ py: 4 }}>
-       <Box
-  sx={{
-    mb: 3,
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: 2,
-  }}
->
+        <Box
+          sx={{
+            mb: 3,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 2,
+          }}
+        >
           <Box>
-            <Typography
-              variant="h4"
-              fontWeight="bold"
-              sx={{ mb: 1 }}
-            >
+            <Typography variant="h4" fontWeight="bold" sx={{ mb: 1 }}>
               Charts
             </Typography>
 
@@ -591,12 +695,9 @@ function renderFixedCounterSelector() {
             )}
           </Box>
 
-
           <Button
             variant="outlined"
-            onClick={() =>
-              navigate(`/report/${runId}/summary`)
-            }
+            onClick={() => navigate(`/report/${runId}/summary`)}
             sx={{
               borderRadius: 3,
               fontWeight: "bold",
@@ -607,10 +708,7 @@ function renderFixedCounterSelector() {
         </Box>
 
         {error && (
-          <Alert
-            severity="error"
-            sx={{ mb: 3 }}
-          >
+          <Alert severity="error" sx={{ mb: 3 }}>
             {error}
           </Alert>
         )}
@@ -632,10 +730,7 @@ function renderFixedCounterSelector() {
               minHeight: 520,
             }}
           >
-            <Typography
-              variant="h6"
-              gutterBottom
-            >
+            <Typography variant="h6" gutterBottom>
               Response Time - Average / 90th Percentil / KPI
             </Typography>
 
@@ -644,12 +739,7 @@ function renderFixedCounterSelector() {
                 No action chart data found for this run.
               </Alert>
             ) : (
-              <ReactECharts
-                option={averageChart}
-                style={{
-                  height: 470,
-                }}
-              />
+              <ReactECharts option={averageChart} style={{ height: 470 }} />
             )}
           </Paper>
 
@@ -660,19 +750,11 @@ function renderFixedCounterSelector() {
               minHeight: 520,
             }}
           >
-            <Typography
-              variant="h6"
-              gutterBottom
-            >
+            <Typography variant="h6" gutterBottom>
               Status Distribution
             </Typography>
 
-            <ReactECharts
-              option={statusChart}
-              style={{
-                height: 470,
-              }}
-            />
+            <ReactECharts option={statusChart} style={{ height: 470 }} />
           </Paper>
         </Box>
 
@@ -684,12 +766,32 @@ function renderFixedCounterSelector() {
               minHeight: 640,
             }}
           >
-            <Typography
-              variant="h6"
-              gutterBottom
-            >
+            <Typography variant="h6" gutterBottom>
               Memory / CPU / IO Counters Trend
             </Typography>
+
+            <FormControl
+              sx={{
+                minWidth: 450,
+                mb: 2,
+              }}
+            >
+              <InputLabel>Process</InputLabel>
+
+              <Select
+                value={selectedProcess}
+                label="Process"
+                onChange={(event) => setSelectedProcess(event.target.value)}
+              >
+                <MenuItem value="ALL">All Processes</MenuItem>
+
+                {availableProcesses.map((process) => (
+                  <MenuItem key={process} value={process}>
+                    {process}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
             {renderFixedCounterSelector()}
 
@@ -708,9 +810,7 @@ function renderFixedCounterSelector() {
             ) : (
               <ReactECharts
                 option={performanceCountersChart}
-                style={{
-                  height: 470,
-                }}
+                style={{ height: 470 }}
               />
             )}
           </Paper>
@@ -724,10 +824,7 @@ function renderFixedCounterSelector() {
               minHeight: 560,
             }}
           >
-            <Typography
-              variant="h6"
-              gutterBottom
-            >
+            <Typography variant="h6" gutterBottom>
               Top Memory Consumers
             </Typography>
 
@@ -736,12 +833,7 @@ function renderFixedCounterSelector() {
                 No memory consumer data found for this run.
               </Alert>
             ) : (
-              <ReactECharts
-                option={topMemoryChart}
-                style={{
-                  height: 510,
-                }}
-              />
+              <ReactECharts option={topMemoryChart} style={{ height: 510 }} />
             )}
           </Paper>
         </Box>

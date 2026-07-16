@@ -264,52 +264,71 @@ function RunUploadPanel({
     }));
   }
 
-  async function loadRuns() {
-    try {
-      const response = await api.get("/runs");
-      const runsData = response.data || [];
-      const orderedRuns = sortRunsByNewest(runsData);
+async function loadRuns(keepSelectedRunId = null) {
+  try {
+    const response = await api.get("/runs");
 
-      setRuns(orderedRuns);
+    const runsData = response.data || [];
 
-      const filesMap = {};
+    const orderedRuns = sortRunsByNewest(runsData);
 
-      for (const run of orderedRuns) {
-        const currentRunId = normalizeRunId(run);
+    const filesMap = {};
 
-        if (!currentRunId) {
-          continue;
-        }
+    for (const run of orderedRuns) {
+      const currentRunId = normalizeRunId(run);
 
-        try {
-          const filesResponse = await api.get(
-            `/runs/${currentRunId}/files`
-          );
-
-          filesMap[currentRunId] = filesResponse.data;
-        } catch (error) {
-          console.error(
-            `Could not load files for ${currentRunId}`,
-            error
-          );
-
-          filesMap[currentRunId] = {
-            run_id: currentRunId,
-            load_files: [],
-            counters_files: [],
-            metadata: {},
-          };
-        }
+      if (!currentRunId) {
+        continue;
       }
 
-      setRunsFilesMap(filesMap);
-    } catch (error) {
-      console.error(error);
-      setErrorMessage(
-        getApiErrorMessage(error, "Could not load reports.")
-      );
+      try {
+        const filesResponse = await api.get(
+          `/runs/${currentRunId}/files`
+        );
+
+        filesMap[currentRunId] = filesResponse.data;
+      } catch (error) {
+        console.error(
+          `Could not load files for ${currentRunId}`,
+          error
+        );
+
+        filesMap[currentRunId] = {
+          run_id: currentRunId,
+          load_files: [],
+          counters_files: [],
+          metadata: {},
+        };
+      }
     }
+
+    setRunsFilesMap(filesMap);
+
+    // IMPORTANT: update reports AFTER map
+    setRuns(orderedRuns);
+
+    // preserve selected report
+    if (
+      keepSelectedRunId &&
+      orderedRuns.some(
+        (r) =>
+          normalizeRunId(r) === keepSelectedRunId
+      )
+    ) {
+      setSelectedRunId(keepSelectedRunId);
+    }
+
+  } catch (error) {
+    console.error(error);
+
+    setErrorMessage(
+      getApiErrorMessage(
+        error,
+        "Could not load reports."
+      )
+    );
   }
+}
 
   async function loadRunFiles(currentRunId) {
     if (!currentRunId) {
@@ -338,57 +357,75 @@ function RunUploadPanel({
   }
 
   async function createRun() {
-    setCreatingRun(true);
-    setMessage("");
-    setErrorMessage("");
+  setCreatingRun(true);
+  setMessage("");
+  setErrorMessage("");
 
-    try {
-      const response = await api.post("/runs/create");
-      const newRunId = response.data.run_id;
+  try {
+    const response = await api.post("/runs/create");
 
-      setSelectedRunId(newRunId);
+    const newRunId = response.data.run_id;
 
-setRunFiles({
-  run_id: newRunId,
-  load_files: [],
-  counters_files: [],
-  metadata: {},
-});
+    addTemporaryRunToList(newRunId);
 
-      addTemporaryRunToList(newRunId);
+    setSelectedRunId(newRunId);
 
-      setSelectedRunId(newRunId);
+    setRunFiles({
+      run_id: newRunId,
+      load_files: [],
+      counters_files: [],
+      metadata: {},
+    });
 
-      setRunFiles({
-        run_id: newRunId,
-        load_files: [],
-        counters_files: [],
-        metadata: {},
-      });
+    setLoadFiles([]);
+    setCountersFiles([]);
+    setProcessesFile(null);
 
-      setLoadFiles([]);
-      setCountersFiles([]);
-      setProcessesFile(null);
-
-      if (onRunChange) {
-        onRunChange(newRunId);
-      }
-
-      setMessage(
-        "New report was prepared. Upload the first file to complete the report information."
-      );
-
-      await loadRuns();
-      await loadRunFiles(newRunId);
-    } catch (error) {
-      console.error(error);
-      setErrorMessage(
-        getApiErrorMessage(error, "Could not prepare a new report.")
-      );
-    } finally {
-      setCreatingRun(false);
+    if (onRunChange) {
+      onRunChange(newRunId);
     }
+
+    setMessage(
+      "New report was prepared. Upload the first file to complete the report information."
+    );
+
+    await loadRuns(newRunId);
+    await loadRunFiles(newRunId);
+
+    setSelectedRunId(newRunId);
+
+    // GARANTE QUE O NOVO REPORT CONTINUE SELECIONADO
+    setSelectedRunId(newRunId);
+
+    setRunFiles({
+      run_id: newRunId,
+      load_files: [],
+      counters_files: [],
+      metadata: {},
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    setErrorMessage(
+      getApiErrorMessage(
+        error,
+        "Could not prepare a new report."
+      )
+    );
+    console.log(
+        "NEW REPORT CREATED:",
+        newRunId
+      );
+
+      console.log(
+        "SELECTED REPORT:",
+        newRunId
+      );
+  } finally {
+    setCreatingRun(false);
   }
+}
 
   async function ensureRunExists() {
     if (selectedRunId) {
@@ -446,7 +483,7 @@ setRunFiles({
         formData.append("file", file);
 
         await api.post(
-          `/runs/${currentRunId}/upload/load-file`,
+        `/runs/${currentRunId}/upload/load`,
           formData,
           {
             headers: {
