@@ -1,393 +1,729 @@
 # 🚀 Performance Analyzer
 
-Web application designed to automate the analysis of performance test reports, consolidating execution results into a centralized, user-friendly dashboard for QA and Performance teams.
+Performance Analyzer is a web application designed to automate the analysis of performance test executions.
+
+The system consolidates Load CSVs, Counters CSVs, and Processes JSON files into a single report, generating:
+
+- Executive summaries
+- Detailed Action reports
+- KPI evaluation
+- PASS / FAIL analysis
+- Performance charts
+- Report comparison
+- Process analysis
+
+The application was created to support Performance Testing activities and reduce manual effort during report generation.
 
 ---
 
-# 📋 Overview
-
-Performance Analyzer allows users to:
-
-- Upload performance reports
-- Store multiple reports
-- Analyze KPIs automatically
-- Compare executions
-- Generate executive summaries
-- Analyze detailed metrics
-- Visualize trends through charts
-- Monitor infrastructure resource utilization
-- Review process execution data
-
----
-
-# ✨ Main Features
-
-## 📁 Report Management
-
-- Automatic report creation on first upload
-- Multi-report support
-- Persistent report storage
-- Automatic report selection
-- Report deletion
-- Refresh reports list
-
----
-
-## 🏷️ Automatic Metadata Extraction
-
-The application automatically extracts metadata from uploaded file names.
-
-### Extracted Information
-
-- Version
-- Build
-- Environment
-- Test Suite
-- Execution Date
-
-### Example
-
-Filename:
-
-```text
-V1.2_B100_Regression_QA_2026-07-15.csv
-```
-
-Generated Metadata:
-
-```text
-Version: V1.2
-Build: B100
-Suite: Regression
-Environment: QA
-Date: 2026-07-15
-```
-
----
-
-# 📊 KPI Analysis
-
-The system automatically calculates important performance metrics.
-
-## Available KPIs
-
-### Transaction Metrics
-
-- Average Response Time
-- Minimum Response Time
-- Maximum Response Time
-- 90th Percentile (P90)
-- Error Rate
-- Throughput
-
-### Status Evaluation
-
-Transactions are automatically classified as:
-
-✅ PASS
-
-❌ FAIL
-
-Based on configured performance thresholds.
-
----
-
-# 📈 Report Summary
-
-Each report contains a consolidated summary including:
-
-- Total Transactions
-- Passed Transactions
-- Failed Transactions
-- Average Performance Metrics
-- Error Analysis
-- Execution Metadata
-
-The Summary page acts as the primary entry point for report analysis.
-
----
-
-# 🔍 Detailed Analysis
-
-The Details page provides transaction-level data.
-
-## Information Displayed
-
-- Transaction Name
-- Average Response Time
-- P90 Response Time
-- Error Count
-- Pass/Fail Status
-
-## Filters
-
-- Transaction Search
-- Status Filter
-- Dynamic Table Filtering
-
----
-
-# 📉 Interactive Charts
-
-Charts are built using:
-
-- Apache ECharts
-- Material UI
-
-## Available Charts
-
-### Response Time Metrics
-
-- Average Time
-- P90
-- Maximum Time
-
-### Resource Utilization
-
-- CPU Usage
-- Memory Usage
-- I/O Statistics
-- Process Activity
-
-### Comparison Charts
-
-- Multi-report comparison
-- Side-by-side KPI analysis
-- Trend visualization
-
----
-
-# ⚙️ Processes Analysis
-
-Dedicated module for analyzing process execution data from JSON files.
-
-## Features
-
-- JSON Upload
-- Persistent Storage
-- Automatic Processing
-- Process Aggregation
-
-## Available Filters
-
-- Instance
-- Process ID
-- Process Name
-- Running Status
-
-## Displayed Data
-
-- Instance
-- Process Name
-- PID
-- Running State
-- Consolidated Runtime Information
-
-The system automatically groups process execution records into a unified view.
-
----
-
-# 🔄 Report Comparison
-
-Compare multiple reports simultaneously.
-
-## Metrics Compared
-
-- Average Response Time
-- P90
-- Error Rate
-- Throughput
-- Pass/Fail Status
-
-## Benefits
-
-- Detect regressions
-- Validate releases
-- Compare environments
-- Track performance evolution
-
----
-
-# 🎨 User Experience Improvements
-
-## Responsive Design
-
-- Mobile-friendly layout
-- CSS Grid responsiveness
-- Responsive cards
-
-## Modern Navigation
-
-- Sidebar navigation
-- Active menu highlighting
-- Improved routing
-- Quick access actions
-
-## Visual Identity
-
-- Green-based theme
-- Enhanced buttons and cards
-- Improved readability
-- Cleaner overall user experience
-
----
-
-# 🛠️ Technology Stack
+# 📐 Architecture
 
 ## Backend
+
+### Technology
 
 ```text
 FastAPI
 Python
-SQLite
 Pandas
-NumPy
+SQLite
 ```
 
+### Responsibilities
+
+```text
+- Report management
+- File upload
+- KPI management
+- Metrics calculations
+- Chart data generation
+- Report comparison
+```
+
+### Structure
+
+```text
+backend/
+
+app/
+├── chart_service.py
+├── counters_parser.py
+├── kpi_service.py
+├── load_parser.py
+├── processes_service.py
+├── report_generator.py
+├── reports_service.py
+├── run_files_service.py
+├── run_service.py
+
+main.py
+```
+
+---
+
 ## Frontend
+
+### Technology
 
 ```text
 React
 Vite
 Material UI
 Apache ECharts
-Axios
-React Router
 ```
 
----
-
-# 📂 Project Structure
+### Responsibilities
 
 ```text
-backend/
-│
-├── services/
-│   ├── reports_service.py
-│   ├── processes_service.py
-│   ├── run_files_service.py
-│   └── metrics_service.py
-│
-├── uploads/
-│   └── run_xxx/
-│       ├── metadata.json
-│       ├── processes.json
-│       └── csv files
-│
-└── main.py
-
-frontend/
-│
-├── pages/
-│   ├── ReportsHome.jsx
-│   ├── ReportDetails.jsx
-│   ├── ChartsPage.jsx
-│   ├── ProcessesPage.jsx
-│   └── CompareReportsPage.jsx
-│
-├── components/
-│
-└── App.jsx
+- Report management
+- Visual dashboards
+- Upload workflows
+- Report comparison
+- Process visualization
+- Charts visualization
 ```
 
 ---
 
-# 🔄 Application Workflow
+# 🔄 Current Workflow
 
-## 1. Upload Report
+## Reports
 
-Upload one or more CSV files.
+The application is report-based.
 
-## 2. Automatic Report Creation
+A report represents a complete performance execution.
 
-The application automatically creates a report when needed.
+Example:
 
-## 3. KPI Processing
+```text
+run_012
+```
 
-Metrics are calculated and stored.
+The user never works directly with technical IDs.
 
-## 4. Summary Review
+The Reports page displays:
 
-Review the execution overview.
+```text
+Version
+Build
+Suite
+Environment
+Date
+```
 
-## 5. Detailed Investigation
-
-Analyze transaction-level metrics.
-
-## 6. Resource Analysis
-
-Inspect CPU, Memory, Process and I/O information.
-
-## 7. Report Comparison
-
-Compare executions and identify regressions.
+extracted automatically from uploaded filenames.
 
 ---
 
-# 🗺️ Roadmap
+# 📤 Upload Flow
 
-## Short-Term Improvements
+## Create Report
 
-- PDF Export
-- Excel Export
-- Advanced Filters
-- Dark Mode
-- Custom KPI Thresholds
+Endpoint:
 
-## Mid-Term Improvements
+```http
+POST /runs/create
+```
 
-- Historical Trend Analysis
-- Scheduled Reports
-- Authentication
-- Report Sharing
+Creates:
 
-## Long-Term Improvements
+```text
+uploads/run_xxx/
+```
 
-- AI-Powered Insights
-- Root Cause Suggestions
-- Predictive Analysis
-- Executive Dashboard
+and automatically selects the newly created report.
 
 ---
 
-# ✅ Current Status
+## Load Files
 
-| Feature | Status |
-|----------|----------|
-| Multi Report Support | ✅ Complete |
-| KPI Calculation Engine | ✅ Complete |
-| Automatic Metadata Extraction | ✅ Complete |
-| Report Summary | ✅ Complete |
-| Detailed Analysis | ✅ Complete |
-| Interactive Charts | ✅ Complete |
-| Process Analysis Module | ✅ Complete |
-| Report Comparison | ✅ Complete |
-| Responsive UI | ✅ Complete |
-| Sidebar Navigation | ✅ Complete |
-| PDF Export | 🚧 Planned |
-| Excel Export | 🚧 Planned |
-| AI Insights | 🚧 Planned |
+### IMPORTANT
+
+Use:
+
+```http
+POST /runs/{run_id}/upload/load-file
+```
+
+DO NOT use:
+
+```http
+POST /runs/{run_id}/upload/load
+```
+
+The old endpoint caused a historical bug where files were uploaded successfully but did not appear in the report.
+
+Current valid endpoint:
+
+```http
+POST /runs/{run_id}/upload/load-file
+```
 
 ---
 
-# 👩‍💻 Author
+## Counters Files
 
-**Adrianne de Oliveira Matos**  
-Senior QA / Performance Engineer  
+Endpoint:
+
+```http
+POST /runs/{run_id}/upload/counters-file
+```
+
+Storage:
+
+```text
+uploads/run_xxx/counters/
+```
+
+---
+
+## Processes JSON
+
+Endpoint:
+
+```http
+POST /runs/{run_id}/upload/processes-file
+```
+
+Storage:
+
+```text
+uploads/run_xxx/processes.json
+```
+
+---
+
+# 🏷 Metadata
+
+Metadata is extracted automatically from filenames.
+
+Example:
+
+```text
+vNP6.1.36_Bundle36.UK.B32435_SESRM3506_Lab-RDI-Brazil_20260710.csv
+```
+
+Generates:
+
+```json
+{
+  "version": "vNP6.1.36",
+  "build": "Bundle36.UK.B32435",
+  "suite": "SESRM3506",
+  "environment": "Lab-RDI-Brazil",
+  "date": "2026-07-10"
+}
+```
+
+Saved as:
+
+```text
+uploads/run_xxx/metadata.json
+```
+
+---
+
+# 📄 Application Pages
+
+---
+
+## Reports
+
+Features:
+
+```text
+- Report listing
+- Filtering
+- Delete report
+- Open report
+```
+
+Displays metadata instead of technical run IDs.
+
+---
+
+## Summary
+
+Route:
+
+```text
+/report/{runId}/summary
+```
+
+Displays:
+
+```text
+One row per Action
+```
+
+Consolidated across all hardware.
+
+---
+
+## Expanded Report
+
+Route:
+
+```text
+/report/{runId}/details
+```
+
+### UX Redesign Completed
+
+Features:
+
+```text
+- Modern Header
+- Navigation Tabs
+- KPI Cards
+- Action Grouping
+- Hardware Breakdown
+```
+
+### Structure
+
+```text
+Action
+ └── Hardware
+      └── Metrics
+```
+
+Metrics:
+
+```text
+KPI
+Average
+Min
+Max
+50th Percentile
+90th Percentile
+PASS / FAIL
+```
+
+---
+
+## Charts
+
+Route:
+
+```text
+/report/{runId}/charts
+```
+
+Displays:
+
+```text
+Action trend
+Memory trend
+CPU trend
+Process timelines
+Performance counters
+Top resource consumers
+```
+
+---
+
+## Processes
+
+Route:
+
+```text
+/report/{runId}/processes
+```
+
+Displays:
+
+```text
+Process Name
+Process ID
+Instance
+Running Processes
+```
+
+Includes:
+
+```text
+Upload
+Persistence
+Filters
+Counters
+```
+
+---
+
+## Compare
+
+Route:
+
+```text
+/compare
+```
+
+Features:
+
+```text
+Select Report A
+Select Report B
+
+Compare:
+- KPI
+- Average
+- P90
+- PASS / FAIL
+```
+
+Export:
+
+```text
+Excel Export
+```
+
+Status:
+
+```text
+Working
+Validated
+```
+
+---
+
+# 📊 KPI Evaluation
+
+Database:
+
+```text
+SQLite
+```
+
+Table:
+
+```text
+kpis
+```
+
+Evaluation Rule:
+
+```text
+90th Percentile <= KPI
+```
+
+Result:
+
+```text
+PASS
+```
+
+Otherwise:
+
+```text
+FAIL
+```
+
+If KPI not found:
+
+```text
+NO KPI
+```
+
+---
+
+# ✅ Recent Deliveries
+
+## Report Creation Flow
+
+Completed:
+
+```text
+- Automatic Report Creation
+- Auto-selection of newly created Report
+- Report persistence
+```
+
+---
+
+## Upload Flow
+
+Completed:
+
+```text
+- Load CSV Upload
+- Counters CSV Upload
+- Processes JSON Upload
+- File persistence
+- File listing
+```
+
+---
+
+## Compare
+
+Completed:
+
+```text
+- Report selection
+- KPI comparison
+- Export to Excel
+```
+
+Validated and operational.
+
+---
+
+## Expanded Report UX
+
+Completed:
+
+```text
+- New Header Design
+- Details Navigation
+- Summary Navigation
+- Upload Navigation
+- Charts Navigation
+- Processes Navigation
+- Compare Navigation
+```
+
+### KPI Cards Added
+
+```text
+Actions
+Hardware Rows
+PASS
+FAIL
+NO KPI
+```
+
+### Preserved
+
+```text
+Action
+ -> Hardware
+     -> Metrics
+```
+
+This structure MUST NOT be removed or replaced.
+
+It is the primary view used by the Performance Team.
+
+---
+
+# 🐞 Historical Bugs Fixed
+
+## Upload Bug
+
+Problem:
+
+```text
+Files uploaded successfully
+but report appeared empty
+```
+
+Cause:
+
+```http
+/runs/{run_id}/upload/load
+```
+
+used instead of:
+
+```http
+/runs/{run_id}/upload/load-file
+```
+
+Resolution:
+
+```http
+/runs/{run_id}/upload/load-file
+```
+
+is now mandatory.
+
+---
+
+## Report Selection Bug
+
+Problem:
+
+```text
+New report created
+Previous report remained selected
+```
+
+Resolution:
+
+Selection logic updated after report creation.
+
+---
+
+# ⚠ Current Known Issue
+
+## Expanded Report Metadata
+
+Status:
+
+```text
+IN PROGRESS
+```
+
+Goal:
+
+Replace:
+
+```text
+Run: run_012
+```
+
+with:
+
+```text
+Version
+Build
+Suite
+Environment
+Date
+```
+
+Current UI already supports metadata chips.
+
+Missing validation:
+
+```jsx
+GET /runs/{runId}/files
+```
+
+must populate:
+
+```jsx
+metadata.version
+metadata.build
+metadata.suite
+metadata.environment
+metadata.date
+```
+
+Current screen loads successfully but metadata integration is still being finalized.
+
+---
+
+# 🧠 Development Notes
+
+## DO NOT CHANGE
+
+Core structure:
+
+```text
+Action
+ └── Hardware
+      └── Metrics
+```
+
+This is a business requirement and is heavily used during performance analysis.
+
+---
+
+## UI Standard Going Forward
+
+Preferred layout:
+
+```text
+Header
+Metadata Chips
+Navigation Tabs
+
+Summary Cards
+
+Results
+```
+
+Pages to align visually:
+
+```text
+Summary
+Details
+Charts
+Processes
+Compare
+```
+
+---
+
+# 📋 Roadmap
+
+## High Priority
+
+```text
+Finish metadata integration in Expanded Report
+Create reusable Header component
+Visual alignment across pages
+```
+
+---
+
+## Medium Priority
+
+```text
+Executive PDF Export
+Comparison Report PDF
+Advanced Filters
+Dark Theme
+```
+
+---
+
+## Long Term
+
+```text
+Authentication
+Multi-user support
+Historical reporting
+KPI Analytics
+Scheduled report generation
+```
+
+---
+
+# 👩‍💻 Project Owner
+
+```text
+Adrianne de Oliveira Matos
 Performance Team
+RDI
+```
 
 ---
 
-# 📌 Project Status
+# ⚡ Quick Start
 
-✅ Active Development
+Backend:
 
-✅ Production-Ready Core Features
+```bash
+cd backend
 
-✅ Dashboard Modernization Completed
+python -m venv .venv
 
-✅ Process Analysis Implemented
+.venv\Scripts\activate
 
-✅ Report Comparison Implemented
+pip install -r requirements.txt
 
-🚧 Continuous Improvements In Progress
+uvicorn main:app --reload
+```
+
+Frontend:
+
+```bash
+cd frontend
+
+npm install
+
+npm run dev
+```
+
+Application:
+
+```text
+Backend:
+http://localhost:8000
+
+Frontend:
+http://localhost:5173
+```
