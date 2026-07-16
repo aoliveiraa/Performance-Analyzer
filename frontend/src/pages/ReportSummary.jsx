@@ -94,9 +94,17 @@ function ReportSummary() {
     return Number.isFinite(numberValue) ? numberValue : 0;
   };
 
-  const formatNumber = (value, decimals = 2) => {
-    return getNumber(value).toFixed(decimals);
-  };
+const formatSeconds = (value) => {
+  return (
+    getNumber(value) / 1000
+  ).toFixed(3);
+};
+
+const formatMilliseconds = (value) => {
+  return (
+    getNumber(value) / 1000
+  ).toFixed(3);
+};
 
   const getStatusColor = (status) => {
     if (status === "PASS") {
@@ -390,27 +398,27 @@ function ReportSummary() {
                       </TableCell>
 
                       <TableCell align="right">
-                        {formatNumber(row.Min)}
+                        {formatMilliseconds(row.Min)}
                       </TableCell>
 
                       <TableCell align="right">
-                        {formatNumber(row.Max)}
+                        {formatMilliseconds(row.Max)}
                       </TableCell>
 
                       <TableCell align="right">
-                        {formatNumber(row.Average)}
+                        {formatMilliseconds(row.Average)}
                       </TableCell>
 
                       <TableCell align="right">
-                        {formatNumber(row["Std Deviation"])}
+                        {formatMilliseconds(row["Std Deviation"])}
                       </TableCell>
 
                       <TableCell align="right">
-                        {formatNumber(row["50th Percentil"])}
+                        {formatMilliseconds(row["50th Percentil"])}
                       </TableCell>
 
                       <TableCell align="right">
-                        {formatNumber(row["90th Percentil"])}
+                        {formatMilliseconds(row["90th Percentil"])}
                       </TableCell>
 
                       <TableCell>

@@ -2,6 +2,7 @@ from pathlib import Path
 import traceback
 import json
 import pandas as pd
+from fastapi import HTTPException
 
 from fastapi import (
     FastAPI,
@@ -218,7 +219,6 @@ def build_error_response(
 
     return response
 
-
 # ============================================================
 # HEALTH
 # ============================================================
@@ -271,6 +271,7 @@ async def upload_load(
     )
 
     return {
+        
         "message": "Load file uploaded successfully",
         "file": "uploads/load.csv",
         "records": dataframe_to_clean_records(
@@ -660,43 +661,6 @@ def remove_run(
 # These are the main upload endpoints used by RunUploadPanel.jsx.
 # The frontend uploads multiple files one by one.
 
-@app.post("/runs/{run_id}/upload/load-file")
-async def upload_run_load_file(
-    run_id: str,
-    file: UploadFile = File(...),
-):
-    """
-    Uploads one Load CSV file into:
-    uploads/{run_id}/load/
-    """
-
-    ensure_run_folders(
-        run_id
-    )
-
-    load_folder = get_run_load_folder(
-        run_id
-    )
-
-    file_path = load_folder / file.filename
-
-    contents = await file.read()
-
-    with open(file_path, "wb") as buffer:
-        buffer.write(contents)
-
-    save_run_metadata_from_filename(
-        run_id,
-        file.filename,
-    )
-
-    return {
-        "message": "Load file uploaded successfully",
-        "run_id": run_id,
-        "file": file.filename,
-    }
-
-
 @app.post("/runs/{run_id}/upload/counters-file")
 async def upload_run_counters_file(
     run_id: str,
@@ -732,6 +696,71 @@ async def upload_run_counters_file(
         "run_id": run_id,
         "file": file.filename,
     }
+
+
+@app.post("/runs/{run_id}/upload/counters-file")
+async def upload_run_counters_file(
+    run_id: str,
+    file: UploadFile = File(...),
+):
+    """
+    Uploads one Counters CSV file into:
+    uploads/{run_id}/counters/
+
+    Validations included:
+    - empty file
+    - .csv extension
+    - metadata in filename
+    - readable CSV structure
+    """
+
+    try:
+        contents = await file.read()
+
+        validate_counters_upload(
+            contents,
+            file.filename,
+        )
+
+        ensure_run_folders(
+            run_id
+        )
+
+        counters_folder = get_run_counters_folder(
+            run_id
+        )
+
+        file_path = counters_folder / file.filename
+
+        with open(file_path, "wb") as buffer:
+            buffer.write(contents)
+
+        save_run_metadata_from_filename(
+            run_id,
+            file.filename,
+        )
+
+        return {
+            "message": "Counters file uploaded successfully",
+            "run_id": run_id,
+            "file": file.filename,
+        }
+
+    except UploadValidationError as error:
+       return {
+    "error": str(error),
+    "run_id": run_id,
+}
+
+    except Exception as error:
+        raise_upload_error(
+            context="runs/upload/counters-file",
+            error=UploadValidationError(
+                f"Erro inesperado ao fazer upload do Counters CSV {file.filename}: {error}"
+            ),
+            file_name=file.filename,
+            run_id=run_id,
+        )
 
 
 # ============================================================
@@ -1312,40 +1341,32 @@ async def upload_run_processes_file(
     file: UploadFile = File(...),
 ):
     """
-    Uploads a Processes JSON file and persists it inside:
-
-    uploads/{run_id}/processes/processes.json
+    Uploads a Processes JSON file and persists it.
     """
 
-    try:
-        contents = await file.read()
+    contents = await file.read()
 
-        save_processes_json(
-            run_id,
-            contents,
-        )
+    save_processes_json(
+        run_id,
+        contents,
+    )
 
-        content_text = contents.decode(
-            "utf-8",
-            errors="ignore",
-        )
+    content_text = contents.decode(
+        "utf-8",
+        errors="ignore",
+    )
 
-        records = extract_processes_from_json(
-            content_text
-        )
+    records = extract_processes_from_json(
+        content_text
+    )
 
-        return {
-            "message": "Processes JSON uploaded successfully",
-            "run_id": run_id,
-            "records_count": len(records),
-            "records": records,
-        }
+    return {
+        "message": "Processes JSON uploaded successfully",
+        "run_id": run_id,
+        "records_count": len(records),
+        "records": records,
+    }
 
-    except Exception as error:
-        return {
-            "error": str(error),
-            "run_id": run_id,
-        }
 
 @app.get("/runs/{run_id}/processes")
 def get_run_processes(
@@ -1395,21 +1416,31 @@ async def upload_processes_json(
     """
 
     try:
-        content = (
-            await file.read()
-        ).decode(
-            "utf-8",
-            errors="ignore",
+        contents = await file.read()
+
+        content = validate_processes_upload(
+            contents,
+            file.filename,
         )
 
         return extract_processes_from_json(
             content
         )
 
+    except UploadValidationError as error:
+        raise_upload_error(
+            context="processes/upload",
+            error=error,
+            file_name=file.filename,
+        )
+
     except Exception as error:
-        return build_error_response(
-            "processes/upload",
-            error,
+        raise_upload_error(
+            context="processes/upload",
+            error=UploadValidationError(
+                f"Erro inesperado ao processar o Processes JSON {file.filename}: {error}"
+            ),
+            file_name=file.filename,
         )
 
 

@@ -1,185 +1,119 @@
 import {
   Box,
-  Button,
-  Container,
-  Paper,
-  Stack,
   Typography,
-  Divider,
+  Grid,
+  Card,
+  CardContent,
+  Stack,
+  Paper,
 } from "@mui/material";
 
-import {
-  Assessment,
-  UploadFile,
-  Speed,
-  CompareArrows,
-  PlayArrow,
-} from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
 
-import { Link } from "react-router-dom";
+export default function ReportsHome() {
+  const navigate = useNavigate();
 
-function ReportsHome() {
   const quickActions = [
     {
-      title: "Generate Report",
+      title: "Create Report",
       description:
-        "Upload Load, Counters and Processes files and generate a new report automatically.",
-      icon: <UploadFile color="primary" sx={{ fontSize: 42 }} />,
-      link: "/upload",
-      button: "Open Upload",
+        "Create a new report and upload performance files.",
+      icon: "📄",
+      action: () => navigate("/upload"),
     },
     {
-      title: "Reports",
+      title: "Open Reports",
       description:
-        "Browse existing reports, review KPIs and investigate performance issues.",
-      icon: <Assessment color="primary" sx={{ fontSize: 42 }} />,
-      link: "/reports",
-      button: "Open Reports",
+        "View all available reports and investigate results.",
+      icon: "📂",
+      action: () => navigate("/reports"),
     },
     {
       title: "Compare Reports",
       description:
-        "Compare KPI evolution between reports and quickly identify regressions.",
-      icon: <CompareArrows color="primary" sx={{ fontSize: 42 }} />,
-      link: "/reports/compare",
-      button: "Compare",
+        "Compare KPI trends between different executions.",
+      icon: "📊",
+      action: () => navigate("/compare"),
     },
     {
-      title: "KPI Management",
+      title: "KPI Settings",
       description:
-        "Register and maintain KPI targets used by PASS/FAIL evaluations.",
-      icon: <Speed color="primary" sx={{ fontSize: 42 }} />,
-      link: "/kpis",
-      button: "Open KPIs",
-    },
-  ];
-
-  const quickStart = [
-    {
-      step: "1. Generate Report",
-      description:
-        "Upload Load, Counters and Processes files.",
-    },
-    {
-      step: "2. Review Summary",
-      description:
-        "Validate KPIs and PASS/FAIL status.",
-    },
-    {
-      step: "3. Expanded Report",
-      description:
-        "Analyze response times and percentiles.",
-    },
-    {
-      step: "4. Charts",
-      description:
-        "Review Memory, CPU and IO trends.",
-    },
-    {
-      step: "5. Compare Reports",
-      description:
-        "Identify regressions between builds.",
+        "Manage thresholds and KPI configurations.",
+      icon: "⚙️",
+      action: () => navigate("/kpis"),
     },
   ];
 
   return (
-    <Container maxWidth="xl">
-      <Box sx={{ py: 4 }}>
+    <Box
+      sx={{
+        p: 4,
+        backgroundColor: "#F5F7FA",
+        minHeight: "100vh",
+      }}
+    >
+      {/* HERO */}
 
-        {/* HERO */}
-
-        <Paper
-          elevation={0}
-          sx={{
-            p: {
-              xs: 3,
-              md: 5,
-            },
-            mb: 4,
-            borderRadius: 4,
-            background:
-              "linear-gradient(135deg, #455A64 0%, #607D8B 100%)",
-            color: "white",
-          }}
-        >
-          <Typography
-            sx={{
-              fontWeight: "bold",
-              fontSize: {
-                xs: "2rem",
-                sm: "2.5rem",
-                md: "3rem",
-              },
-            }}
-          >
-            Performance Analyzer
-          </Typography>
-
-          <Typography
-            sx={{
-              mt: 2,
-              opacity: 0.9,
-              maxWidth: 900,
-              fontSize: {
-                xs: "1rem",
-                md: "1.15rem",
-              },
-            }}
-          >
-            Analyze performance reports,
-            compare executions, identify regressions
-            and investigate resource consumption
-            through interactive dashboards and KPIs.
-          </Typography>
-        </Paper>
-
-        {/* QUICK ACTIONS */}
-
+      <Box sx={{ mb: 5 }}>
         <Typography
-          variant="h5"
+          variant="h3"
           fontWeight="bold"
-          sx={{ mb: 3 }}
+          gutterBottom
         >
-          Quick Actions
+          Performance Analyzer
         </Typography>
 
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: {
-              xs: "1fr",
-              sm: "1fr 1fr",
-              xl: "repeat(4, 1fr)",
-            },
-            gap: 3,
-            mb: 5,
-          }}
+        <Typography
+          variant="h6"
+          color="text.secondary"
         >
-          {quickActions.map((item) => (
-            <Paper
-              key={item.title}
+          Analyze, compare and investigate performance
+          reports faster and with more confidence.
+        </Typography>
+      </Box>
+
+      {/* QUICK ACTIONS */}
+
+      <Typography
+        variant="h5"
+        fontWeight="bold"
+        gutterBottom
+      >
+        Quick Actions
+      </Typography>
+
+      <Grid container spacing={3} sx={{ mb: 5 }}>
+        {quickActions.map((item) => (
+          <Grid
+            item
+            xs={12}
+            md={6}
+            lg={3}
+            key={item.title}
+          >
+            <Card
+              onClick={item.action}
               sx={{
-                p: 3,
+                height: "100%",
                 borderRadius: 4,
-                transition:
-                  "all .25s ease",
-                display: "flex",
-                flexDirection: "column",
+                cursor: "pointer",
+                transition: "0.2s",
 
                 "&:hover": {
-                  transform:
-                    "translateY(-4px)",
+                  transform: "translateY(-4px)",
                   boxShadow: 6,
                 },
               }}
             >
-              <Stack
-                spacing={2}
-                alignItems="center"
-                textAlign="center"
-                sx={{ flexGrow: 1 }}
-              >
-                {item.icon}
+              <CardContent>
+                <Box
+                  sx={{
+                    fontSize: 48,
+                    mb: 2,
+                  }}
+                >
+                  {item.icon}
+                </Box>
 
                 <Typography
                   variant="h6"
@@ -190,112 +124,149 @@ function ReportsHome() {
 
                 <Typography
                   color="text.secondary"
+                  sx={{ mt: 1 }}
                 >
                   {item.description}
                 </Typography>
-              </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
 
-              <Button
-                component={Link}
-                to={item.link}
-                variant="contained"
-                fullWidth
-                sx={{
-                  mt: 3,
-                  borderRadius: 2,
-                }}
-              >
-                {item.button}
-              </Button>
-            </Paper>
-          ))}
-        </Box>
+      {/* MAIN CONTENT */}
 
-        {/* QUICK START */}
+      <Grid container spacing={3}>
+        {/* HOW IT WORKS */}
 
-        <Paper
-          sx={{
-            p: 4,
-            borderRadius: 4,
-          }}
-        >
-          <Typography
-            variant="h5"
-            fontWeight="bold"
-            gutterBottom
-          >
-            Quick Start Guide
-          </Typography>
-
-          <Typography
-            color="text.secondary"
-            sx={{ mb: 3 }}
-          >
-            Follow the steps below to analyze a new
-            performance execution.
-          </Typography>
-
-          <Divider sx={{ mb: 4 }} />
-
-          <Box
+        <Grid item xs={12} md={8}>
+          <Paper
             sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "1fr",
-                sm: "1fr 1fr",
-                md: "repeat(3, 1fr)",
-                xl: "repeat(5, 1fr)",
-              },
-              gap: 3,
+              p: 4,
+              borderRadius: 4,
+              height: "100%",
             }}
           >
-            {quickStart.map((item) => (
-              <Paper
-                key={item.step}
-                variant="outlined"
-                sx={{
-                  p: 3,
-                  borderRadius: 3,
-                  textAlign: "center",
-                  transition:
-                    "all .2s ease",
+            <Typography
+              variant="h5"
+              fontWeight="bold"
+              gutterBottom
+            >
+              How It Works
+            </Typography>
 
-                  "&:hover": {
-                    boxShadow: 4,
-                    transform:
-                      "translateY(-3px)",
-                  },
-                }}
-              >
-                <PlayArrow
-                  color="primary"
-                  sx={{
-                    fontSize: 40,
-                  }}
-                />
-
-                <Typography
-                  fontWeight="bold"
-                  sx={{ mt: 1 }}
-                >
-                  {item.step}
+            <Stack spacing={4} sx={{ mt: 3 }}>
+              <Box>
+                <Typography fontWeight="bold">
+                  1. Create Report
                 </Typography>
 
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ mt: 1 }}
-                >
-                  {item.description}
+                <Typography color="text.secondary">
+                  Create a new report container to organize
+                  and store your uploads.
                 </Typography>
-              </Paper>
-            ))}
-          </Box>
-        </Paper>
+              </Box>
 
-      </Box>
-    </Container>
+              <Box>
+                <Typography fontWeight="bold">
+                  2. Upload Files
+                </Typography>
+
+                <Typography color="text.secondary">
+                  Upload Load CSV, Counters CSV and
+                  Processes JSON files.
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography fontWeight="bold">
+                  3. Analyze Results
+                </Typography>
+
+                <Typography color="text.secondary">
+                  Review Summary, Details, Charts and
+                  Processes information.
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography fontWeight="bold">
+                  4. Compare Reports
+                </Typography>
+
+                <Typography color="text.secondary">
+                  Compare reports side-by-side and identify
+                  performance trends.
+                </Typography>
+              </Box>
+            </Stack>
+          </Paper>
+        </Grid>
+
+        {/* SUPPORTED FILES */}
+
+        <Grid item xs={12} md={4}>
+          <Paper
+            sx={{
+              p: 4,
+              borderRadius: 4,
+              height: "100%",
+            }}
+          >
+            <Typography
+              variant="h5"
+              fontWeight="bold"
+              gutterBottom
+            >
+              Supported Files
+            </Typography>
+
+            <Stack spacing={3} sx={{ mt: 3 }}>
+              <Box>
+                <Typography sx={{ fontSize: 32 }}>
+                  📄
+                </Typography>
+
+                <Typography fontWeight="bold">
+                  Load CSV
+                </Typography>
+
+                <Typography color="text.secondary">
+                  Apache JMeter load test results.
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography sx={{ fontSize: 32 }}>
+                  📄
+                </Typography>
+
+                <Typography fontWeight="bold">
+                  Counters CSV
+                </Typography>
+
+                <Typography color="text.secondary">
+                  Performance counters collected during tests.
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography sx={{ fontSize: 32 }}>
+                  📄
+                </Typography>
+
+                <Typography fontWeight="bold">
+                  Processes JSON
+                </Typography>
+
+                <Typography color="text.secondary">
+                  Process monitoring information.
+                </Typography>
+              </Box>
+            </Stack>
+          </Paper>
+        </Grid>
+      </Grid>
+    </Box>
   );
 }
-
-export default ReportsHome;

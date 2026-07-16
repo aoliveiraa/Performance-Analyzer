@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import {
   Alert,
   Box,
@@ -30,8 +29,10 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import WarningIcon from "@mui/icons-material/Warning";
 import api from "../services/api";
+import { Link, useNavigate } from "react-router-dom";
 
 function CompareReportsPage() {
+  const navigate = useNavigate();
   const [reports, setReports] = useState([]);
   const [reportA, setReportA] = useState("");
   const [reportB, setReportB] = useState("");
@@ -351,19 +352,24 @@ function CompareReportsPage() {
   }
 
   return (
-    <Box sx={{ backgroundColor: "#f4f6f8", minHeight: "100vh", py: 4 }}>
+    <Box sx={{ background:"linear-gradient(135deg,#FFFFFF 0%, #F1F8E9 100%)"}}>
       <Container maxWidth="xl">
         <Paper
-          elevation={0}
-          sx={{
-            p: 4,
-            mb: 4,
-            borderRadius: 4,
-            background:
-              "linear-gradient(135deg, #0d47a1 0%, #1976d2 45%, #42a5f5 100%)",
-            color: "white",
-          }}
-        >
+  sx={{
+    p: 4,
+    mb: 4,
+
+    borderRadius: 8,
+
+    background:
+      "linear-gradient(135deg,#FFFFFF 0%, #F8FBF8 100%)",
+
+    border: "1px solid #E8F5E9",
+
+    boxShadow:
+      "0 8px 24px rgba(0,0,0,0.05)",
+  }}
+>
           <Stack
             direction={{ xs: "column", md: "row" }}
             justifyContent="space-between"
@@ -371,43 +377,59 @@ function CompareReportsPage() {
             spacing={2}
           >
             <Box>
-              <Typography variant="h3" fontWeight="bold">
-                Compare Reports
-              </Typography>
-              <Typography sx={{ mt: 1, opacity: 0.9 }}>
-                Compare KPI results between two performance reports.
+              <Typography
+  variant="h3"
+  fontWeight="bold"
+  sx={{
+    color: "#1C2526",
+  }}
+>
+  Compare Reports
+</Typography>
+<Typography
+  sx={{
+    mt: 1,
+    color: "#607D8B",
+  }}
+>                Compare KPI results between two performance reports.
               </Typography>
             </Box>
 
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
               <Button
-                component={Link}
-                to="/reports"
-                variant="contained"
-                color="inherit"
-                startIcon={<ArrowBackIcon />}
-                sx={{
-                  color: "#0d47a1",
-                  fontWeight: "bold",
-                  borderRadius: 3,
-                }}
-              >
-                Back to Reports
-              </Button>
+  startIcon={<ArrowBackIcon />}
+  onClick={() => navigate("/reports")}
+  sx={{
+    backgroundColor: "#FFFFFF",
+    color: "#2E7D32",
 
-              <Button
-                variant="contained"
-                color="inherit"
-                startIcon={<RefreshIcon />}
-                onClick={loadReports}
-                sx={{
-                  color: "#0d47a1",
-                  fontWeight: "bold",
-                  borderRadius: 3,
-                }}
-              >
-                Refresh
-              </Button>
+    "&:hover": {
+      backgroundColor: "#F1F8E9",
+    },
+  }}
+>
+  Back to Reports
+</Button>
+
+             <Button
+  startIcon={<RefreshIcon />}
+  onClick={() => {
+    loadReports();
+    setComparisonData(null);
+    setSuccessMessage("");
+    setErrorMessage("");
+  }}
+  sx={{
+    backgroundColor: "#FFFFFF",
+    color: "#2E7D32",
+
+    "&:hover": {
+      backgroundColor: "#F1F8E9",
+    },
+  }}
+>
+  Refresh
+</Button>
             </Stack>
           </Stack>
         </Paper>
@@ -484,20 +506,23 @@ function CompareReportsPage() {
             </FormControl>
 
             <Button
-              variant="contained"
-              startIcon={<CompareArrowsIcon />}
-              onClick={handleCompare}
-              disabled={comparing || reports.length < 2}
-              sx={{
-                height: 56,
-                minWidth: 180,
-                borderRadius: 3,
-                fontWeight: "bold",
-                textTransform: "none",
-              }}
-            >
-              {comparing ? "Comparing..." : "Compare"}
-            </Button>
+  onClick={handleCompare}
+  disabled={comparing}
+  startIcon={<CompareArrowsIcon />}
+  sx={{
+    backgroundColor: "#4CAF50",
+    color: "#FFFFFF",
+
+    minWidth: 160,
+    height: 56,
+
+    "&:hover": {
+      backgroundColor: "#43A047",
+    },
+  }}
+>
+  {comparing ? "Comparing..." : "Compare"}
+</Button>
           </Stack>
         </Paper>
 

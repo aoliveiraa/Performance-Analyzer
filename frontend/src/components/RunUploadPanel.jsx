@@ -95,6 +95,28 @@ function RunUploadPanel({
     });
   }
 
+  function getApiErrorMessage(error, fallbackMessage) {
+    const detail = error?.response?.data?.detail;
+
+    if (typeof detail === "string") {
+      return detail;
+    }
+
+    if (detail?.message) {
+      return detail.message;
+    }
+
+    if (error?.response?.data?.message) {
+      return error.response.data.message;
+    }
+
+    if (error?.message) {
+      return `${fallbackMessage} Technical detail: ${error.message}`;
+    }
+
+    return fallbackMessage;
+  }
+
   function formatDateFromRaw(dateRaw) {
     if (!dateRaw) {
       return "";
@@ -283,7 +305,9 @@ function RunUploadPanel({
       setRunsFilesMap(filesMap);
     } catch (error) {
       console.error(error);
-      setErrorMessage("Could not load reports.");
+      setErrorMessage(
+        getApiErrorMessage(error, "Could not load reports.")
+      );
     }
   }
 
@@ -358,7 +382,9 @@ setRunFiles({
       await loadRunFiles(newRunId);
     } catch (error) {
       console.error(error);
-      setErrorMessage("Could not prepare a new report.");
+      setErrorMessage(
+        getApiErrorMessage(error, "Could not prepare a new report.")
+      );
     } finally {
       setCreatingRun(false);
     }
@@ -447,7 +473,9 @@ setRunFiles({
       }
     } catch (error) {
       console.error(error);
-      setErrorMessage("Could not upload Load files.");
+      setErrorMessage(
+        getApiErrorMessage(error, "Could not upload Load files.")
+      );
     } finally {
       setUploadingLoad(false);
     }
@@ -499,7 +527,9 @@ setRunFiles({
       }
     } catch (error) {
       console.error(error);
-      setErrorMessage("Could not upload Counters files.");
+      setErrorMessage(
+        getApiErrorMessage(error, "Could not upload Counters files.")
+      );
     } finally {
       setUploadingCounters(false);
     }
@@ -557,7 +587,7 @@ setRunFiles({
     console.error(error);
 
     setErrorMessage(
-      "Could not upload Processes JSON."
+      getApiErrorMessage(error, "Could not upload Processes JSON.")
     );
   } finally {
     setUploadingProcesses(false);
@@ -586,7 +616,7 @@ setRunFiles({
 
       <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>
         Create or select a report, then upload multiple Load and Counters CSV
-        files. The report information is generated from the uploaded file name.
+        files. If something is wrong, the upload area will show the exact validation error.
       </Typography>
 
       {message && (
@@ -596,7 +626,7 @@ setRunFiles({
       )}
 
       {errorMessage && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
           {errorMessage}
         </Alert>
       )}
