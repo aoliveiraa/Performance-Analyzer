@@ -40,14 +40,18 @@ function ReportDetails() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [metadata, setMetadata] = useState({});
+  const [market0Only, setMarket0Only] = useState(true);
 
   useEffect(() => {
     loadDetails();
-  }, [runId]);
+  }, [runId,market0Only]);
 
   const loadDetails = async () => {
     setLoading(true);
     setErrorMessage("");
+
+    const response = await api.get(`/reports/actions/${runId}?market0_only=${market0Only}`);
+
 
     try {
       const response = await api.get(`/reports/actions/${runId}`);
@@ -364,7 +368,10 @@ setMetadata(
             >
               Compare
             </Button>
+
           </Stack>
+
+          
         </Paper>
 
         {errorMessage && (
@@ -373,6 +380,48 @@ setMetadata(
           </Alert>
         )}
 
+<Box
+  sx={{
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 1,
+    mb: 2,
+  }}
+>
+  <Button
+    variant={market0Only ? "contained" : "outlined"}
+    onClick={() => setMarket0Only(true)}
+    sx={{
+      bgcolor: market0Only ? "#2e7d32" : "transparent",
+      color: market0Only ? "#fff" : "#2e7d32",
+      borderColor: "#2e7d32",
+      textTransform: "none",
+      "&:hover": {
+        bgcolor: market0Only ? "#1b5e20" : "#f5f5f5",
+      },
+    }}
+  >
+    Market 0 Actions
+  </Button>
+
+  <Button
+    variant={!market0Only ? "contained" : "outlined"}
+    onClick={() => setMarket0Only(false)}
+    sx={{
+      bgcolor: !market0Only ? "#2e7d32" : "transparent",
+      color: !market0Only ? "#fff" : "#2e7d32",
+      borderColor: "#2e7d32",
+      textTransform: "none",
+      "&:hover": {
+        bgcolor: !market0Only ? "#1b5e20" : "#f5f5f5",
+      },
+    }}
+  >
+    All Actions
+  </Button>
+</Box>
+
+        
         <Stack
           direction={{ xs: "column", md: "row" }}
           spacing={2}

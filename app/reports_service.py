@@ -1,4 +1,7 @@
+import pandas as pd
+
 from app.run_service import get_runs
+
 from app.run_files_service import (
     list_run_files,
     process_run_load_files,
@@ -10,107 +13,9 @@ from app.report_generator import (
 )
 
 
-def get_reports():
-    reports = []
-
-    runs = get_runs()
-
-    for run in runs:
-        run_id = run.get("id")
-
-        try:
-            files_info = list_run_files(
-                run_id
-            )
-
-            metadata = files_info.get(
-                "metadata",
-                {}
-            )
-
-            load_files = files_info.get(
-                "load_files",
-                []
-            )
-
-            counters_files = files_info.get(
-                "counters_files",
-                []
-            )
-
-            total_files = (
-                len(load_files)
-                + len(counters_files)
-            )
-
-            reports.append(
-                {
-                    "run_id": run_id,
-
-                    "version":
-                        metadata.get(
-                            "version",
-                            "-"
-                        ),
-
-                    "build":
-                        metadata.get(
-                            "build",
-                            "-"
-                        ),
-
-                    "suite":
-                        metadata.get(
-                            "suite",
-                            "-"
-                        ),
-
-                    "environment":
-                        metadata.get(
-                            "environment",
-                            "-"
-                        ),
-
-                    "date":
-                        metadata.get(
-                            "date",
-                            "-"
-                        ),
-
-                    "status":
-                        (
-                            "Executed"
-                            if total_files > 0
-                            else "Pending"
-                        ),
-
-                    "load_count":
-                        len(load_files),
-
-                    "counters_count":
-                        len(counters_files),
-
-                    "total_files":
-                        total_files,
-                }
-            )
-
-        except Exception as error:
-            print(
-                f"[REPORTS] Error processing {run_id}: {error}"
-            )
-
-    reports.sort(
-        key=lambda report: report["run_id"],
-        reverse=True,
-    )
-
-    return reports
-
-
 def dataframe_to_records(df):
     """
-    Converts dataframe into JSON records.
+    Converts a Pandas DataFrame into JSON-safe records.
     """
 
     if df is None or df.empty:
@@ -118,9 +23,14 @@ def dataframe_to_records(df):
 
     clean_df = df.copy()
 
-    clean_df = clean_df.where(
-        clean_df.notnull(),
-        None
+    clean_df = clean_df.replace(
+        [float("inf"), float("-inf")],
+        None,
+    )
+
+    clean_df = clean_df.astype(object).where(
+        pd.notnull(clean_df),
+        None,
     )
 
     return clean_df.to_dict(
@@ -128,34 +38,153 @@ def dataframe_to_records(df):
     )
 
 
-def get_report_summary(run_id):
+def get_reports():
     """
-    Generates the same summary used by ReportSummary.jsx.
+    Lists all user-facing reports.
+
+    This function is used by:
+    - GET /reports
+    - ReportsList.jsx
+    - CompareReportsPage.jsx
+
+    It reads:
+    - run folders from get_runs()
+    - file counts from list_run_files()
+    - metadata from uploads/{run_id}/metadata.json
     """
 
-    load_data = process_run_load_files(
+    reports = []
+
+    runs = get_runs()
+
+    for run in runs:
+        run_id = run.get("id")
+
+        if not run_id:
+            continue
+
+        files_info = list_run_files(
+            run_id
+        )
+
+        metadata = files_info.get(
+            "metadata",
+            {},
+        )
+
+        load_files = files_info.get(
+            "load_files",
+            [],
+        )
+
+        counters_files = files_info.get(
+            "counters_files",
+            [],
+        )
+
+        load_count = len(load_files)
+        counters_count = len(counters_files)
+
+        status = (
+            "Executed"
+            if load_count > 0 or counters_count > 0
+            else "Pending"
+        )
+
+        reports.append(
+            {
+                "run_id": run_id,
+
+                # User-facing metadata
+                "version": metadata.get(
+                    "version",
+                    "-",
+                ),
+                "build": metadata.get(
+                    "build",
+                    run_id,
+                ),
+                "suite": metadata.get(
+                    "suite",
+                    "-",
+                ),
+                "environment": metadata.get(
+                    "environment",
+                    "-",
+                ),
+                "date": metadata.get(
+                    "date",
+                    "-",
+                ),
+                "date_raw": metadata.get(
+                    "date_raw",
+                    "",
+                ),
+
+                # File information
+                "load_files": load_count,
+                "counters_files": counters_count,
+                "has_processes_file": files_info.get(
+                    "has_processes_file",
+                    False,
+                ),
+
+                # Optional raw data for frontend/debug
+                "files": {
+                    "load": load_files,
+                    "counters": counters_files,
+                },
+                "metadata": metadata,
+
+                # Status used by list page
+                "status": status,
+            }
+        )
+
+    return reports
+
+
+def get_report_summary(run_id):
+    """
+    Generates the same action summary used by ReportSummary.jsx.
+    """
+
+    actions = process_run_load_files(
         run_id
     )
 
-    if load_data is None or load_data.empty:
-        return []
+    if actions is None or actions.empty:
+        return {
+            "run_id": run_id,
+            "details_count": 0,
+            "summary_count": 0,
+            "summary": [],
+        }
 
     action_report = generate_action_report(
-        load_data
+        actions
     )
 
     if action_report is None or action_report.empty:
-        return []
+        return {
+            "run_id": run_id,
+            "details_count": 0,
+            "summary_count": 0,
+            "summary": [],
+        }
 
-    summary_report = (
-        generate_action_summary_report(
-            action_report
-        )
+    summary_report = generate_action_summary_report(
+        action_report
     )
 
-    return dataframe_to_records(
-        summary_report
-    )
+    return {
+        "run_id": run_id,
+        "details_count": len(action_report),
+        "summary_count": len(summary_report),
+        "summary": dataframe_to_records(
+            summary_report
+        ),
+    }
 
 
 def compare_reports(
@@ -163,140 +192,62 @@ def compare_reports(
     report_b,
 ):
     """
-    Compares two reports using the
-    generated action summary.
+    Compares two reports using their generated action summaries.
     """
 
-    summary_a = get_report_summary(
+    summary_a_result = get_report_summary(
         report_a
     )
 
-    summary_b = get_report_summary(
+    summary_b_result = get_report_summary(
         report_b
     )
 
-    indexed_a = {}
-    indexed_b = {}
-
-    for row in summary_a:
-        action = row.get("Action")
-
-        if action:
-            indexed_a[action] = row
-
-    for row in summary_b:
-        action = row.get("Action")
-
-        if action:
-            indexed_b[action] = row
-
-    all_actions = sorted(
-        set(indexed_a.keys())
-        |
-        set(indexed_b.keys())
+    summary_a = summary_a_result.get(
+        "summary",
+        [],
     )
 
-    comparison = []
+    summary_b = summary_b_result.get(
+        "summary",
+        [],
+    )
 
-    for action in all_actions:
+    df_a = pd.DataFrame(
+        summary_a
+    )
 
-        a = indexed_a.get(
-            action,
-            {}
-        )
+    df_b = pd.DataFrame(
+        summary_b
+    )
 
-        b = indexed_b.get(
-            action,
-            {}
-        )
+    if df_a.empty or df_b.empty:
+        return {
+            "report_a": report_a,
+            "report_b": report_b,
+            "records": [],
+            "message": "One or both reports do not have summary data.",
+        }
 
-        p90_a = a.get(
-            "90th Percentil"
-        )
+    if "Action" not in df_a.columns or "Action" not in df_b.columns:
+        return {
+            "report_a": report_a,
+            "report_b": report_b,
+            "records": [],
+            "message": "Action column not found in one or both summaries.",
+        }
 
-        p90_b = b.get(
-            "90th Percentil"
-        )
-
-        difference_ms = None
-        difference_percent = None
-        result = "N/A"
-
-        try:
-
-            if (
-                p90_a is not None
-                and p90_b is not None
-            ):
-                difference_ms = (
-                    float(p90_b)
-                    - float(p90_a)
-                )
-
-                if float(p90_a) != 0:
-                    difference_percent = round(
-                        (
-                            difference_ms
-                            / float(p90_a)
-                        )
-                        * 100,
-                        2,
-                    )
-
-                if difference_ms < 0:
-                    result = "Improved"
-
-                elif difference_ms > 0:
-                    result = "Worse"
-
-                else:
-                    result = "Same"
-
-        except Exception:
-            pass
-
-        comparison.append(
-            {
-                "action": action,
-
-                "kpi":
-                    a.get("KPI")
-                    or b.get("KPI"),
-
-                "report_a": {
-                    "run_id": report_a,
-                    "p90": p90_a,
-                    "status":
-                        a.get(
-                            "Status"
-                        ),
-                },
-
-                "report_b": {
-                    "run_id": report_b,
-                    "p90": p90_b,
-                    "status":
-                        b.get(
-                            "Status"
-                        ),
-                },
-
-                "difference_ms":
-                    difference_ms,
-
-                "difference_percent":
-                    difference_percent,
-
-                "result":
-                    result,
-            }
-        )
+    merged = df_a.merge(
+        df_b,
+        on="Action",
+        how="outer",
+        suffixes=("_A", "_B"),
+    )
 
     return {
         "report_a": report_a,
         "report_b": report_b,
-        "comparison": comparison,
-        "total_actions": len(
-            comparison
+        "records": dataframe_to_records(
+            merged
         ),
     }

@@ -61,6 +61,19 @@ function ReportSummary() {
   }
 };
 
+const formatNumber = (value, decimals = 0) => {
+  if (value === null || value === undefined) return "-";
+
+  const num = Number(value);
+
+  if (isNaN(num)) return value;
+
+  return num.toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+};
+
   const loadSummary = async () => {
     setLoading(true);
     setErrorMessage("");
@@ -163,7 +176,7 @@ const formatMilliseconds = (value) => {
             mb: 4,
             borderRadius: 4,
             background:
-              "linear-gradient(135deg, #0d47a1 0%, #1976d2 45%, #42a5f5 100%)",
+              "#ffffff",
             color: "white",
           }}
         >
@@ -386,7 +399,7 @@ const formatMilliseconds = (value) => {
                       <TableCell>{row.Action}</TableCell>
 
                       <TableCell align="right">
-                        {formatNumber(row.KPI, 0)}
+                        {formatNumber(row.KPI)}
                       </TableCell>
 
                       <TableCell align="right">

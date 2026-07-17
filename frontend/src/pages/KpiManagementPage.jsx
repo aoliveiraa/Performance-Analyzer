@@ -12,6 +12,10 @@ import {
   TableRow,
   TextField,
   Typography,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
 
 import { useEffect, useState } from "react";
@@ -24,6 +28,7 @@ function KpisPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [category, setCategory] = useState("Other KPIs");
 
   useEffect(() => {
     loadKpis();
@@ -99,6 +104,7 @@ function KpisPage() {
 
       params.append("action_name", cleanActionName);
       params.append("kpi_ms", numericKpi);
+      params.append("category", category);
 
       const response = await fetch(
         `http://localhost:8000/kpis?${params.toString()}`,
@@ -116,6 +122,7 @@ function KpisPage() {
       setSuccessMessage("KPI saved successfully.");
       setActionName("");
       setKpiMs("");
+      setCategory("Other KPIs");
 
       await loadKpis();
     } catch (err) {
@@ -127,11 +134,28 @@ function KpisPage() {
   }
 
   function handleEditKpi(kpi) {
-    setActionName(kpi.Action || kpi.action || "");
-    setKpiMs(kpi.KPI || kpi.kpi_ms || "");
-    setSuccessMessage("");
-    setError("");
-  }
+  setActionName(
+    kpi.Action ||
+    kpi.action ||
+    kpi.action_name ||
+    ""
+  );
+
+  setKpiMs(
+    kpi.KPI ||
+    kpi.kpi_ms ||
+    ""
+  );
+
+  setCategory(
+    kpi.Category ||
+    kpi.category ||
+    "Other KPIs"
+    );
+
+  setSuccessMessage("");
+  setError("");
+}
 
   return (
     <Container maxWidth="lg">
@@ -221,6 +245,25 @@ function KpisPage() {
                 type="number"
                 placeholder="Example: 2000"
               />
+              <FormControl fullWidth>
+                <InputLabel>Category</InputLabel>
+
+                <Select
+                  value={category}
+                  label="Category"
+                  onChange={(event) =>
+                    setCategory(event.target.value)
+                  }
+                >
+                  <MenuItem value="Market 0 KPIs">
+                    Market 0 KPIs
+                  </MenuItem>
+
+                  <MenuItem value="Other KPIs">
+                    Other KPIs
+                  </MenuItem>
+                </Select>
+              </FormControl>
 
               <Button
                 type="submit"
@@ -241,6 +284,7 @@ function KpisPage() {
                 onClick={() => {
                   setActionName("");
                   setKpiMs("");
+                  setCategory("Other KPIs");
                   setError("");
                   setSuccessMessage("");
                 }}
@@ -299,66 +343,79 @@ function KpisPage() {
               </Alert>
             ) : (
               <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>
-                        <strong>Action</strong>
-                      </TableCell>
+  <Table>
+    <TableHead>
+      <TableRow>
+        <TableCell>
+          <strong>Action</strong>
+        </TableCell>
 
-                      <TableCell align="right">
-                        <strong>KPI ms</strong>
-                      </TableCell>
+        <TableCell align="right">
+          <strong>KPI ms</strong>
+        </TableCell>
 
-                      <TableCell align="right">
-                        <strong>Actions</strong>
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
+        <TableCell>
+          <strong>Category</strong>
+        </TableCell>
 
-                  <TableBody>
-                    {kpis.map((kpi, index) => {
-                      const action =
-                        kpi.Action ||
-                        kpi.action ||
-                        kpi.action_name ||
-                        "";
+        <TableCell align="right">
+          <strong>Actions</strong>
+        </TableCell>
+      </TableRow>
+    </TableHead>
 
-                      const value =
-                        kpi.KPI ||
-                        kpi.kpi_ms ||
-                        kpi.kpi ||
-                        "";
+    <TableBody>
+      {kpis.map((kpi, index) => {
+        const action =
+          kpi.Action ||
+          kpi.action ||
+          kpi.action_name ||
+          "";
 
-                      return (
-                        <TableRow key={`${action}-${index}`}>
-                          <TableCell>
-                            {action}
-                          </TableCell>
+        const value =
+          kpi.KPI ||
+          kpi.kpi_ms ||
+          kpi.kpi ||
+          "";
 
-                          <TableCell align="right">
-                            {value}
-                          </TableCell>
+        const category =
+          kpi.Category ||
+          kpi.category ||
+          "Other KPIs";
 
-                          <TableCell align="right">
-                            <Button
-                              variant="text"
-                              onClick={() =>
-                                handleEditKpi(kpi)
-                              }
-                              sx={{
-                                textTransform: "none",
-                              }}
-                            >
-                              Edit
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+        return (
+          <TableRow key={`${action}-${index}`}>
+            <TableCell>
+              {action}
+            </TableCell>
+
+            <TableCell align="right">
+              {value}
+            </TableCell>
+
+            <TableCell>
+              {category}
+            </TableCell>
+
+            <TableCell align="right">
+              <Button
+                variant="text"
+                onClick={() =>
+                  handleEditKpi(kpi)
+                }
+                sx={{
+                  textTransform: "none",
+                }}
+              >
+                Edit
+              </Button>
+            </TableCell>
+          </TableRow>
+        );
+      })}
+    </TableBody>
+  </Table>
+</TableContainer>
             )}
           </Paper>
         </Box>
