@@ -1,107 +1,97 @@
 # 🚀 Performance Analyzer
 
-Performance Analyzer is a web application designed to automate the analysis of performance test executions.
+Performance Analyzer is a web-based application designed to automate the analysis of performance test results from NP6 environments.
 
-The system consolidates Load CSVs, Counters CSVs, and Processes JSON files into a single report, generating:
-
-- Executive summaries
-- Detailed Action reports
-- KPI evaluation
-- PASS / FAIL analysis
-- Performance charts
-- Report comparison
-- Process analysis
-
-The application was created to support Performance Testing activities and reduce manual effort during report generation.
+The solution consolidates Load Reports, Performance Counters, Processes data, KPI Management, Charts, Comparisons, and Summary Reports into a single platform, reducing manual analysis effort and standardizing performance reporting across teams.
 
 ---
 
-# 📐 Architecture
+# 📌 Current Architecture
 
 ## Backend
 
-### Technology
-
-```text
-FastAPI
-Python
-Pandas
-SQLite
-```
-
-### Responsibilities
-
-```text
-- Report management
-- File upload
-- KPI management
-- Metrics calculations
-- Chart data generation
-- Report comparison
-```
-
-### Structure
-
-```text
-backend/
-
-app/
-├── chart_service.py
-├── counters_parser.py
-├── kpi_service.py
-├── load_parser.py
-├── processes_service.py
-├── report_generator.py
-├── reports_service.py
-├── run_files_service.py
-├── run_service.py
-
-main.py
-```
-
----
+- FastAPI
+- SQLite
+- Pandas
+- Python
 
 ## Frontend
 
-### Technology
+- React
+- Vite
+- Material UI
+- Apache ECharts
+
+---
+
+# 📂 Report Structure
+
+Each uploaded report is stored using the following structure:
 
 ```text
-React
-Vite
-Material UI
-Apache ECharts
-```
-
-### Responsibilities
-
-```text
-- Report management
-- Visual dashboards
-- Upload workflows
-- Report comparison
-- Process visualization
-- Charts visualization
+uploads/
+└── run_xxx/
+    ├── metadata.json
+    ├── load/
+    │    ├── *.csv
+    ├── counters/
+    │    ├── *.csv
+    └── processes/
+         └── processes.json
 ```
 
 ---
 
-# 🔄 Current Workflow
+# ✅ Implemented Features
 
-## Reports
+## Report Management
 
-The application is report-based.
+### Create Report
 
-A report represents a complete performance execution.
-
-Example:
+Creates a new report folder:
 
 ```text
-run_012
+run_001
+run_002
+run_003
+...
 ```
 
-The user never works directly with technical IDs.
+### Upload Load Files
 
-The Reports page displays:
+Supports multiple Load CSV uploads.
+
+Files are automatically stored under:
+
+```text
+uploads/run_xxx/load
+```
+
+### Upload Counters Files
+
+Supports multiple Counters CSV uploads.
+
+Files are automatically stored under:
+
+```text
+uploads/run_xxx/counters
+```
+
+### Upload Processes Files
+
+Supports Processes JSON uploads.
+
+Files are automatically stored under:
+
+```text
+uploads/run_xxx/processes
+```
+
+### Automatic Metadata Extraction
+
+Metadata is automatically extracted from uploaded file names.
+
+Extracted fields:
 
 ```text
 Version
@@ -111,615 +101,525 @@ Environment
 Date
 ```
 
-extracted automatically from uploaded filenames.
-
----
-
-# 📤 Upload Flow
-
-## Create Report
-
-Endpoint:
-
-```http
-POST /runs/create
-```
-
-Creates:
+Example:
 
 ```text
-uploads/run_xxx/
+vNP6.1.36_Bundle36.CA.B12345_SESRM3506_Lab-RDI-Brazil_20260713.csv
 ```
 
-and automatically selects the newly created report.
-
----
-
-## Load Files
-
-### IMPORTANT
-
-Use:
-
-```http
-POST /runs/{run_id}/upload/load-file
-```
-
-DO NOT use:
-
-```http
-POST /runs/{run_id}/upload/load
-```
-
-The old endpoint caused a historical bug where files were uploaded successfully but did not appear in the report.
-
-Current valid endpoint:
-
-```http
-POST /runs/{run_id}/upload/load-file
-```
-
----
-
-## Counters Files
-
-Endpoint:
-
-```http
-POST /runs/{run_id}/upload/counters-file
-```
-
-Storage:
+Produces:
 
 ```text
-uploads/run_xxx/counters/
+Version: vNP6.1.36
+Build: Bundle36.CA.B12345
+Suite: SESRM3506
+Environment: Lab-RDI-Brazil
+Date: 07/13/2026
 ```
 
----
-
-## Processes JSON
-
-Endpoint:
-
-```http
-POST /runs/{run_id}/upload/processes-file
-```
-
-Storage:
+Stored in:
 
 ```text
-uploads/run_xxx/processes.json
+metadata.json
 ```
 
 ---
 
-# 🏷 Metadata
+# 📊 KPI Management
 
-Metadata is extracted automatically from filenames.
+## KPI Database
+
+SQLite database:
+
+```text
+performance_analyzer.db
+```
+
+Table:
+
+```sql
+kpis
+```
+
+Fields:
+
+```text
+Action Name
+KPI (ms)
+Category
+Enabled
+```
+
+---
+
+## KPI Categories
+
+Supported categories:
+
+### Market 0 KPIs
+
+Critical KPIs used by Performance Team.
+
+Examples:
+
+```text
+Fries
+Medium Coke
+Serve Order
+Recall
+Take Out Total
+Store
+```
+
+### Other KPIs
+
+Non-priority actions and supporting metrics.
+
+---
+
+## KPI Features
+
+### Create KPI
+
+Allows KPI registration by Action.
 
 Example:
 
 ```text
-vNP6.1.36_Bundle36.UK.B32435_SESRM3506_Lab-RDI-Brazil_20260710.csv
+Action: Fries
+KPI: 400
+Category: Market 0 KPIs
 ```
 
-Generates:
+### Edit KPI
 
-```json
-{
-  "version": "vNP6.1.36",
-  "build": "Bundle36.UK.B32435",
-  "suite": "SESRM3506",
-  "environment": "Lab-RDI-Brazil",
-  "date": "2026-07-10"
-}
-```
-
-Saved as:
+Allows updating:
 
 ```text
-uploads/run_xxx/metadata.json
+KPI Value
+Category
 ```
+
+### Categories
+
+Selectable values:
+
+```text
+Market 0 KPIs
+Other KPIs
+```
+
+### Enabled Flag
+
+Database support already implemented.
+
+Reserved for future use.
 
 ---
 
-# 📄 Application Pages
+# 📈 Report Summary
 
----
+## Summary View
 
-## Reports
+Displays consolidated KPI results grouped by Action.
 
-Features:
-
-```text
-- Report listing
-- Filtering
-- Delete report
-- Open report
-```
-
-Displays metadata instead of technical run IDs.
-
----
-
-## Summary
-
-Route:
+Includes:
 
 ```text
-/report/{runId}/summary
-```
-
-Displays:
-
-```text
-One row per Action
-```
-
-Consolidated across all hardware.
-
----
-
-## Expanded Report
-
-Route:
-
-```text
-/report/{runId}/details
-```
-
-### UX Redesign Completed
-
-Features:
-
-```text
-- Modern Header
-- Navigation Tabs
-- KPI Cards
-- Action Grouping
-- Hardware Breakdown
-```
-
-### Structure
-
-```text
-Action
- └── Hardware
-      └── Metrics
-```
-
-Metrics:
-
-```text
-KPI
-Average
+Total Quantity
 Min
 Max
-50th Percentile
+Average
 90th Percentile
 PASS / FAIL
 ```
 
 ---
 
-## Charts
+## Market 0 Filtering
 
-Route:
+Summary is filtered by KPI Category.
 
-```text
-/report/{runId}/charts
-```
-
-Displays:
+Default behavior:
 
 ```text
-Action trend
-Memory trend
-CPU trend
-Process timelines
-Performance counters
-Top resource consumers
+Show Market 0 KPIs Only
 ```
+
+Only Actions categorized as:
+
+```text
+Market 0 KPIs
+```
+
+are displayed.
 
 ---
 
-## Processes
+# 📋 Expanded Report
 
-Route:
+Expanded Report displays detailed KPI results.
 
-```text
-/report/{runId}/processes
-```
-
-Displays:
+Grouped by:
 
 ```text
-Process Name
-Process ID
-Instance
-Running Processes
+Action
+Hardware
 ```
 
 Includes:
 
 ```text
-Upload
-Persistence
-Filters
-Counters
-```
-
----
-
-## Compare
-
-Route:
-
-```text
-/compare
-```
-
-Features:
-
-```text
-Select Report A
-Select Report B
-
-Compare:
-- KPI
-- Average
-- P90
-- PASS / FAIL
-```
-
-Export:
-
-```text
-Excel Export
-```
-
-Status:
-
-```text
-Working
-Validated
-```
-
----
-
-# 📊 KPI Evaluation
-
-Database:
-
-```text
-SQLite
-```
-
-Table:
-
-```text
-kpis
-```
-
-Evaluation Rule:
-
-```text
-90th Percentile <= KPI
-```
-
-Result:
-
-```text
-PASS
-```
-
-Otherwise:
-
-```text
-FAIL
-```
-
-If KPI not found:
-
-```text
-NO KPI
-```
-
----
-
-# ✅ Recent Deliveries
-
-## Report Creation Flow
-
-Completed:
-
-```text
-- Automatic Report Creation
-- Auto-selection of newly created Report
-- Report persistence
-```
-
----
-
-## Upload Flow
-
-Completed:
-
-```text
-- Load CSV Upload
-- Counters CSV Upload
-- Processes JSON Upload
-- File persistence
-- File listing
-```
-
----
-
-## Compare
-
-Completed:
-
-```text
-- Report selection
-- KPI comparison
-- Export to Excel
-```
-
-Validated and operational.
-
----
-
-## Expanded Report UX
-
-Completed:
-
-```text
-- New Header Design
-- Details Navigation
-- Summary Navigation
-- Upload Navigation
-- Charts Navigation
-- Processes Navigation
-- Compare Navigation
-```
-
-### KPI Cards Added
-
-```text
-Actions
-Hardware Rows
 PASS
 FAIL
 NO KPI
 ```
 
-### Preserved
+---
+
+## Market 0 Actions Mode
+
+Expanded Report now supports KPI Category filtering.
+
+### Default
 
 ```text
-Action
- -> Hardware
-     -> Metrics
+Market 0 Actions
 ```
 
-This structure MUST NOT be removed or replaced.
+### Optional
 
-It is the primary view used by the Performance Team.
+```text
+All Actions
+```
 
 ---
 
-# 🐞 Historical Bugs Fixed
+## UI Toggle
 
-## Upload Bug
-
-Problem:
+Implemented visual toggle:
 
 ```text
-Files uploaded successfully
-but report appeared empty
+[ Market 0 Actions ]
+[ All Actions ]
 ```
 
-Cause:
+Behavior:
+
+- Active button highlighted in green
+- Market 0 enabled by default
+- Users may switch to All Actions when required
+
+---
+
+# 📊 Charts
+
+Available charts:
+
+## Status Distribution
+
+Displays:
+
+```text
+PASS
+FAIL
+NO KPI
+```
+
+---
+
+## Action Charts
+
+Displays:
+
+```text
+Action Performance Distribution
+```
+
+Endpoint:
 
 ```http
-/runs/{run_id}/upload/load
+GET /charts/actions/{run_id}
 ```
 
-used instead of:
+---
+
+## Memory Trend
+
+Displays memory growth over time.
+
+Endpoint:
 
 ```http
-/runs/{run_id}/upload/load-file
+GET /charts/memory/{run_id}
 ```
 
-Resolution:
+---
+
+## CPU Trend
+
+Displays CPU utilization.
+
+Endpoint:
 
 ```http
-/runs/{run_id}/upload/load-file
-```
-
-is now mandatory.
-
----
-
-## Report Selection Bug
-
-Problem:
-
-```text
-New report created
-Previous report remained selected
-```
-
-Resolution:
-
-Selection logic updated after report creation.
-
----
-
-# ⚠ Current Known Issue
-
-## Expanded Report Metadata
-
-Status:
-
-```text
-IN PROGRESS
-```
-
-Goal:
-
-Replace:
-
-```text
-Run: run_012
-```
-
-with:
-
-```text
-Version
-Build
-Suite
-Environment
-Date
-```
-
-Current UI already supports metadata chips.
-
-Missing validation:
-
-```jsx
-GET /runs/{runId}/files
-```
-
-must populate:
-
-```jsx
-metadata.version
-metadata.build
-metadata.suite
-metadata.environment
-metadata.date
-```
-
-Current screen loads successfully but metadata integration is still being finalized.
-
----
-
-# 🧠 Development Notes
-
-## DO NOT CHANGE
-
-Core structure:
-
-```text
-Action
- └── Hardware
-      └── Metrics
-```
-
-This is a business requirement and is heavily used during performance analysis.
-
----
-
-## UI Standard Going Forward
-
-Preferred layout:
-
-```text
-Header
-Metadata Chips
-Navigation Tabs
-
-Summary Cards
-
-Results
-```
-
-Pages to align visually:
-
-```text
-Summary
-Details
-Charts
-Processes
-Compare
+GET /charts/cpu/{run_id}
 ```
 
 ---
 
-# 📋 Roadmap
+## Top Memory Consumers
 
-## High Priority
+Displays:
 
 ```text
-Finish metadata integration in Expanded Report
-Create reusable Header component
-Visual alignment across pages
+Top Memory Processes
+```
+
+Endpoint:
+
+```http
+GET /charts/top-memory/{run_id}
 ```
 
 ---
 
-## Medium Priority
+## Performance Counters
+
+Tracks:
 
 ```text
-Executive PDF Export
-Comparison Report PDF
-Advanced Filters
-Dark Theme
+Private Bytes
+Working Set
+Handle Count
+Thread Count
+IO Read Bytes/sec
+IO Write Bytes/sec
+Processor Time
+```
+
+Endpoint:
+
+```http
+GET /charts/performance-counters/{run_id}
 ```
 
 ---
 
-## Long Term
+# ⚙️ Processes
+
+Processes module supports:
+
+### Upload Processes JSON
+
+Extracts:
 
 ```text
-Authentication
-Multi-user support
-Historical reporting
-KPI Analytics
-Scheduled report generation
+Process Name
+PID
+Instance
+Running Status
+```
+
+### Filtering
+
+Supports filtering by:
+
+```text
+Process Name
+Process ID
+Instance
+Running Status
 ```
 
 ---
 
-# 👩‍💻 Project Owner
+# 🔄 Compare Reports
+
+Allows side-by-side comparison between reports.
+
+Compares:
 
 ```text
-Adrianne de Oliveira Matos
-Performance Team
-RDI
+KPI
+Average
+90th Percentile
+Status
+```
+
+Supports export functionality.
+
+---
+
+# 🔌 Main Endpoints
+
+## Reports
+
+```http
+GET /reports
+GET /runs
+GET /runs/create
+GET /runs/{run_id}/files
+DELETE /runs/{run_id}
 ```
 
 ---
 
-# ⚡ Quick Start
+## Uploads
 
-Backend:
-
-```bash
-cd backend
-
-cd C:\Git\Performance-Analyzer
-python -m uvicorn app.main:app --reload
-
+```http
+POST /runs/{run_id}/upload/load-file
+POST /runs/{run_id}/upload/counters-file
+POST /runs/{run_id}/upload/processes-file
 ```
 
-Frontend:
+---
 
-```bash
-cd frontend
+## Summary
 
-npm install
-
-npm run dev
+```http
+GET /reports/actions/{run_id}/summary
 ```
 
-Application:
+---
+
+## Expanded Report
+
+```http
+GET /reports/actions/{run_id}
+```
+
+Supports:
+
+```http
+?market0_only=true
+?market0_only=false
+```
+
+---
+
+## Charts
+
+```http
+GET /charts/status/{run_id}
+GET /charts/actions/{run_id}
+GET /charts/memory/{run_id}
+GET /charts/cpu/{run_id}
+GET /charts/top-memory/{run_id}
+GET /charts/performance-counters/{run_id}
+```
+
+---
+
+## KPI Management
+
+```http
+GET /kpis
+POST /kpis
+```
+
+---
+
+# ✅ Recent Fixes (July 2026)
+
+### KPI Improvements
+
+- Added KPI Categories
+- Added Market 0 KPI classification
+- Added category editing
+- Fixed KPI persistence bug
+- Fixed category update logic
+
+### Reports
+
+- Restored metadata loading
+- Restored Load/Counters counts
+- Restored report status calculation
+- Fixed report details loading
+
+### Expanded Report
+
+- Restored missing endpoint
+- Added Market 0 filtering
+- Added All Actions mode
+
+### Charts
+
+- Restored charts endpoints
+- Fixed multiple 404 errors
+- Restored Actions Chart
+- Restored Top Memory Chart
+- Restored Performance Counters Chart
+
+### Backend Stabilization
+
+Restored endpoints:
+
+```http
+GET /runs/{run_id}/files
+GET /reports/actions/{run_id}
+GET /charts/actions/{run_id}
+GET /charts/top-memory/{run_id}
+GET /charts/performance-counters/{run_id}
+```
+
+---
+
+# 🎯 Next Steps
+
+## UI / UX
+
+- Standardize Report Summary Header
+- Align Summary visual style with Expanded Report
+- Create reusable Header component
+- Improve Charts page responsiveness
+
+---
+
+## KPI Improvements
+
+- Enable/Disable KPI support in UI
+- Apply Enabled flag during PASS/FAIL calculation
+- KPI bulk import
+
+---
+
+## Reporting
+
+- Market 0 filter support in Charts
+- Market 0 filter support in Compare
+- KPI Category metrics dashboard
+
+---
+
+## Technical Improvements
+
+- Refactor duplicated filtering logic
+- Centralize KPI Category service
+- Improve API caching strategy
+- Add automated validation tests
+
+---
+
+# ✅ Current Status
 
 ```text
-Backend:
-http://localhost:8000
-
-Frontend:
-http://localhost:5173
+Reports....................... Working
+Load Upload................... Working
+Counters Upload............... Working
+Processes..................... Working
+Metadata Extraction........... Working
+Summary....................... Working
+Expanded Report............... Working
+Charts........................ Working
+Compare....................... Working
+KPI Management................ Working
+Market 0 KPIs................ Working
+SQLite Persistence............ Working
 ```
+
+---
+
+**Version:** 1.1.0  
+**Last Updated:** 17-Jul-2026  
+**Status:** Stable
