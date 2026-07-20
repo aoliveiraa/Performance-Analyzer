@@ -276,3 +276,42 @@ def compare_reports(report_a: str, report_b: str):
         "comparison": records,
         "total_actions": len(records),
     }
+
+from app.run_service import get_runs
+from app.run_files_service import get_run_metadata
+
+
+def get_reports():
+    reports = []
+
+    for run in get_runs():
+
+        if isinstance(run, dict):
+            run_id = (
+                run.get("run_id")
+                or run.get("id")
+                or run.get("name")
+            )
+        else:
+            run_id = str(run)
+
+        if not run_id:
+            continue
+
+        metadata = get_run_metadata(run_id)
+
+        reports.append({
+            "run_id": run_id,
+            "version": metadata.get("version"),
+            "build": metadata.get("build"),
+            "suite": metadata.get("suite"),
+            "environment": metadata.get("environment"),
+            "date": metadata.get("date"),
+        })
+
+    reports.sort(
+        key=lambda item: item.get("run_id", ""),
+        reverse=True,
+    )
+
+    return reports

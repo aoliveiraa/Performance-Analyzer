@@ -437,7 +437,7 @@ def get_reports_summary():
 
 def save_processes_json(
     run_id: str,
-    content: bytes,
+    content,
 ):
     ensure_run_folders(run_id)
 
@@ -447,11 +447,18 @@ def save_processes_json(
 
     with open(
         file_path,
-        "wb",
+        "w",
+        encoding="utf-8",
     ) as file:
-        file.write(content)
+        json.dump(
+            content,
+            file,
+            indent=2,
+            ensure_ascii=False,
+        )
 
     return str(file_path)
+
 
 def load_processes_json(
     run_id: str,

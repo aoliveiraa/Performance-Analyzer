@@ -27,9 +27,6 @@ import {
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import ErrorIcon from "@mui/icons-material/Error";
-import WarningIcon from "@mui/icons-material/Warning";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
@@ -56,17 +53,10 @@ function CompareReportsPage() {
   const [reportSearchA, setReportSearchA] = useState("");
   const [reportSearchB, setReportSearchB] = useState("");
 
-  const [versionFilter, setVersionFilter] =
-  useState("ALL");
-
-const [buildFilter, setBuildFilter] =
-  useState("ALL");
-
-const [suiteFilter, setSuiteFilter] =
-  useState("ALL");
-
-const [environmentFilter, setEnvironmentFilter] =
-  useState("ALL");
+  const [versionFilter, setVersionFilter] = useState("ALL");
+  const [buildFilter, setBuildFilter] = useState("ALL");
+  const [suiteFilter, setSuiteFilter] = useState("ALL");
+  const [environmentFilter, setEnvironmentFilter] = useState("ALL");
 
   useEffect(() => {
     loadReports();
@@ -82,10 +72,8 @@ const [environmentFilter, setEnvironmentFilter] =
 
       setReports(data);
 
-      // Reset screen
       setReportA("");
       setReportB("");
-
       setReportSearchA("");
       setReportSearchB("");
 
@@ -94,9 +82,11 @@ const [environmentFilter, setEnvironmentFilter] =
       setSuiteFilter("ALL");
       setEnvironmentFilter("ALL");
 
+      setSearchText("");
+      setResultFilter("All");
+
       setComparisonData(null);
-
-
+      setSuccessMessage("");
     } catch (error) {
       console.error(error);
 
@@ -174,324 +164,28 @@ const [environmentFilter, setEnvironmentFilter] =
     return reports.find((report) => normalizeRunId(report) === runId) || null;
   }
 
-function filterReportsBySearch(
-  sourceReports,
-  searchValue
-) {
-
-  const search =
-    String(searchValue || "")
+  function filterReportsBySearch(sourceReports, searchValue) {
+    const search = String(searchValue || "")
       .trim()
       .toLowerCase();
 
-  if (!search) {
-    return sourceReports;
-  }
+    if (!search) {
+      return sourceReports;
+    }
 
-  return sourceReports.filter(
-    (report) =>
-      buildReportSearchText(report)
-        .includes(search)
-  );
-}
-
-function normalizeComparisonResponse(rawData) {
-  if (!rawData) {
-    return {
-      comparison: [],
-      total_actions: 0,
-    };
-  }
-
-  if (rawData.error || rawData.traceback || rawData.context === "compare") {
-    throw new Error(
-      rawData.error ||
-        "Backend returned an error while comparing reports."
+    return sourceReports.filter((report) =>
+      buildReportSearchText(report).includes(search)
     );
   }
-
-  const rawRows =
-    rawData.comparison ||
-    rawData.comparisons ||
-    rawData.records ||
-    rawData.rows ||
-    rawData.data ||
-    [];
-
-  const rows = Array.isArray(rawRows) ? rawRows : [];
-
-  const normalizedRows = rows.map((row) => {
-    const action =
-      row.action ||
-      row.Action ||
-      row.ActionName ||
-      row.action_name ||
-      "-";
-
-    const hardware =
-      row.hardware ||
-      row.Hardware ||
-      row.HardwareName ||
-      row.Machine ||
-      row.Device ||
-      "Unknown Hardware";
-
-    const kpi =
-      row.kpi ??
-      row.KPI ??
-      row.Kpi ??
-      row.KPI_A ??
-      row.KPI_B ??
-      0;
-
-    const reportAP90 =
-      row.report_a?.p90 ??
-      row.P90_A ??
-      row.ReportA_P90 ??
-      row.Report_A_P90 ??
-      row["Report A P90"] ??
-      row["90th Percentil_A"] ??
-      row["90th Percentile_A"] ??
-      row.p90_a ??
-      0;
-
-    const reportBP90 =
-      row.report_b?.p90 ??
-      row.P90_B ??
-      row.ReportB_P90 ??
-      row.Report_B_P90 ??
-      row["Report B P90"] ??
-      row["90th Percentil_B"] ??
-      row["90th Percentile_B"] ??
-      row.p90_b ??
-      0;
-
-    const reportAStatus =
-      row.report_a?.status ||
-      row.Status_A ||
-      row.ReportA_Status ||
-      row.Report_A_Status ||
-      row["Report A Status"] ||
-      "NO KPI";
-
-    const reportBStatus =
-      row.report_b?.status ||
-      row.Status_B ||
-      row.ReportB_Status ||
-      row.Report_B_Status ||
-      row["Report B Status"] ||
-      "NO KPI";
-
-    const differenceMs =
-      row.difference_ms ??
-      row.Diff_ms ??
-      row.diff_ms ??
-      row["Diff ms"] ??
-      reportBP90 - reportAP90;
-
-    const differencePercent =
-      row.difference_percent ??
-      row.Diff_Percent ??
-      row.diff_percent ??
-      row["Diff %"] ??
-      (
-        reportAP90 > 0
-          ? ((reportBP90 - reportAP90) / reportAP90) * 100
-          : 0
-      );
-
-    let result =
-      row.result ||
-      row.Result ||
-      row.comparison_result ||
-      "N/A";
-
-    if (result === "Better") {
-      result = "Improved";
-    }
-
-    if (result === "Regression") {
-      result = "Worse";
-    }
-
-    if (result === "N/A") {
-      if (differencePercent < 0) {
-        result = "Improved";
-      } else if (differencePercent > 0) {
-        result = "Worse";
-      } else {
-        result = "Same";
-      }
-    }
-
-    return {
-      action,
-      hardware,
-      kpi,
-
-      report_a: {
-        p90: reportAP90,
-        status: reportAStatus,
-      },
-
-      report_b: {
-        p90: reportBP90,
-        status: reportBStatus,
-      },
-
-      difference_ms: differenceMs,
-      difference_percent: differencePercent,
-      result,
-
-      raw: row,
-    };
-  });
-
-  return {
-    ...rawData,
-    comparison: normalizedRows,
-    total_actions:
-      rawData.total_actions ??
-      rawData.totalActions ??
-      rawData.total ??
-      normalizedRows.length,
-  };
-}
-  async function handleCompare() {
-  if (!reportA || !reportB) {
-    setErrorMessage("Please select two reports to compare.");
-    setSuccessMessage("");
-    return;
-  }
-
-  if (reportA === reportB) {
-    setErrorMessage("Please select two different reports.");
-    setSuccessMessage("");
-    return;
-  }
-
-  setComparing(true);
-  setErrorMessage("");
-  setSuccessMessage("");
-  setComparisonData(null);
-
-  try {
-    const response = await api.get("/reports/compare", {
-      params: {
-        report_a: reportA,
-        report_b: reportB,
-      },
-    });
-
-    console.log("COMPARE RAW RESPONSE:", response.data);
-
-    const normalizedData = normalizeComparisonResponse(response.data);
-
-    console.log("COMPARE NORMALIZED RESPONSE:", normalizedData);
-
-    setComparisonData(normalizedData);
-
-    if (!normalizedData.comparison.length) {
-  setSuccessMessage("");
-  setErrorMessage(
-    "Compare completed, but no comparison rows were available to display."
-  );
-  return;
-}
-
-    setSuccessMessage("Reports compared successfully.");
-  } catch (error) {
-    console.error("COMPARE ERROR:", error);
-
-    setComparisonData(null);
-    setSuccessMessage("");
-
-    const detail = error?.response?.data?.detail;
-
-    const message =
-      typeof detail === "string"
-        ? detail
-        : detail?.error ||
-          detail?.message ||
-          error.message ||
-          "Could not compare reports. Please check if the backend endpoint /reports/compare is working.";
-
-    setErrorMessage(message);
-  } finally {
-    setComparing(false);
-  }
-}
-
-  function exportExcel() {
-
-  if (!comparisonRows.length) {
-    return;
-  }
-
-  const rows = comparisonRows.map(
-    (row) => ({
-      Action: row.action,
-      KPI: row.kpi,
-
-      Report_A_P90:
-        row.report_a?.p90,
-
-      Report_A_Status:
-        row.report_a?.status,
-
-      Report_B_P90:
-        row.report_b?.p90,
-
-      Report_B_Status:
-        row.report_b?.status,
-
-      Diff_ms:
-        row.difference_ms,
-
-      Diff_Percent:
-        row.difference_percent,
-
-      Result:
-        row.result,
-    })
-  );
-
-  const worksheet =
-    XLSX.utils.json_to_sheet(rows);
-
-  const workbook =
-    XLSX.utils.book_new();
-
-  XLSX.utils.book_append_sheet(
-    workbook,
-    worksheet,
-    "Comparison"
-  );
-
-  const excelBuffer =
-    XLSX.write(workbook, {
-      bookType: "xlsx",
-      type: "array",
-    });
-
-  const blob = new Blob(
-    [excelBuffer],
-    {
-      type:
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    }
-  );
-
-  saveAs(
-    blob,
-    `Compare_${reportA}_vs_${reportB}.xlsx`
-  );
-}
-
 
   function getNumber(value) {
     const numberValue = Number(value);
     return Number.isFinite(numberValue) ? numberValue : null;
+  }
+
+  function getSafeNumber(value, fallback = 0) {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : fallback;
   }
 
   function formatNumber(value, decimals = 2) {
@@ -514,168 +208,278 @@ function normalizeComparisonResponse(rawData) {
     return `${numberValue.toFixed(2)}%`;
   }
 
-  function getStatusColor(status) {
-    if (status === "PASS") {
-      return "success";
-    }
+  function getComparisonResult(differencePercent) {
+    const value = getSafeNumber(differencePercent, 0);
 
-    if (status === "FAIL") {
-      return "error";
-    }
-
-    return "warning";
-  }
-
-  function getStatusIcon(status) {
-    if (status === "PASS") {
-      return <CheckCircleIcon />;
-    }
-
-    if (status === "FAIL") {
-      return <ErrorIcon />;
-    }
-
-    return <WarningIcon />;
-  }
-
-  function getResultColor(result) {
-    if (result === "Improved") {
-      return "success";
-    }
-
-    if (result === "Worse") {
-      return "error";
-    }
-
-    if (result === "Same") {
-      return "info";
-    }
-
-    return "default";
-  }
-
-  function getResultLabel(result) {
-    if (result === "Improved") {
+    if (value < -0.01) {
       return "Improved";
     }
 
-    if (result === "Worse") {
+    if (value > 0.01) {
       return "Worse";
     }
 
-    if (result === "Same") {
-      return "Same";
-    }
-
-    return "N/A";
+    return "Same";
   }
 
-  const availableVersions =
-  useMemo(() => {
+  function normalizeComparisonResponse(rawData) {
+    if (!rawData) {
+      return {
+        comparison: [],
+        total_actions: 0,
+      };
+    }
 
-    return [
-      ...new Set(
-        reports
-          .map(
-            r =>
-              r.version ||
-              r.Version
-          )
-          .filter(Boolean)
-      ),
-    ].sort();
+    if (rawData.error || rawData.traceback || rawData.context === "compare") {
+      throw new Error(
+        rawData.error ||
+          "Backend returned an error while comparing reports."
+      );
+    }
 
-  }, [reports]);
+    const rawRows =
+      rawData.comparison ||
+      rawData.comparisons ||
+      rawData.records ||
+      rawData.rows ||
+      rawData.data ||
+      [];
 
-const availableBuilds =
-  useMemo(() => {
+    const rows = Array.isArray(rawRows) ? rawRows : [];
 
-    return [
-      ...new Set(
-        reports
-          .map(
-            r =>
-              r.build ||
-              r.Build
-          )
-          .filter(Boolean)
-      ),
-    ].sort();
+    const normalizedRows = rows.map((row) => {
+      const action =
+        row.action ||
+        row.Action ||
+        row.ActionName ||
+        row.action_name ||
+        "-";
 
-  }, [reports]);
+      const hardware =
+        row.hardware ||
+        row.Hardware ||
+        row.HardwareName ||
+        row.Machine ||
+        row.Device ||
+        row.Client ||
+        "Unknown Hardware";
 
-const availableSuites =
-  useMemo(() => {
+      const kpi =
+        row.kpi ??
+        row.KPI ??
+        row.Kpi ??
+        row.KPI_A ??
+        row.KPI_B ??
+        0;
 
-    return [
-      ...new Set(
-        reports
-          .map(
-            r =>
-              r.suite ||
-              r.Suite
-          )
-          .filter(Boolean)
-      ),
-    ].sort();
+      const reportAP90 = getSafeNumber(
+        row.report_a?.p90 ??
+          row.P90_A ??
+          row.ReportA_P90 ??
+          row.Report_A_P90 ??
+          row["Report A P90"] ??
+          row["90th Percentil_A"] ??
+          row["90th Percentile_A"] ??
+          row.p90_a,
+        0
+      );
 
-  }, [reports]);
+      const reportBP90 = getSafeNumber(
+        row.report_b?.p90 ??
+          row.P90_B ??
+          row.ReportB_P90 ??
+          row.Report_B_P90 ??
+          row["Report B P90"] ??
+          row["90th Percentil_B"] ??
+          row["90th Percentile_B"] ??
+          row.p90_b,
+        0
+      );
 
-const availableEnvironments =
-  useMemo(() => {
+      const differenceMs = reportBP90 - reportAP90;
 
-    return [
-      ...new Set(
-        reports
-          .map(
-            r =>
-              r.environment ||
-              r.Environment
-          )
-          .filter(Boolean)
-      ),
-    ].sort();
+      const differencePercent =
+        reportAP90 > 0
+          ? ((reportBP90 - reportAP90) / reportAP90) * 100
+          : 0;
 
-  }, [reports]);
+      const result = getComparisonResult(differencePercent);
 
-const metadataFilteredReports = useMemo(() => {
+      return {
+        action,
+        hardware,
+        kpi,
+        report_a: {
+          p90: reportAP90,
+        },
+        report_b: {
+          p90: reportBP90,
+        },
+        difference_ms: differenceMs,
+        difference_percent: differencePercent,
+        result,
+        raw: row,
+      };
+    });
 
-    return reports.filter(
-      (report) => {
+    return {
+      ...rawData,
+      comparison: normalizedRows,
+      total_actions:
+        rawData.total_actions ??
+        rawData.totalActions ??
+        rawData.total ??
+        normalizedRows.length,
+    };
+  }
 
-        const version =
-          report.version ||
-          report.Version;
+  async function handleCompare() {
+    if (!reportA || !reportB) {
+      setErrorMessage("Please select two reports to compare.");
+      setSuccessMessage("");
+      return;
+    }
 
-        const build =
-          report.build ||
-          report.Build;
+    if (reportA === reportB) {
+      setErrorMessage("Please select two different reports.");
+      setSuccessMessage("");
+      return;
+    }
 
-        const suite =
-          report.suite ||
-          report.Suite;
+    setComparing(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+    setComparisonData(null);
 
-        const environment =
-          report.environment ||
-          report.Environment;
+    try {
+      const response = await api.get("/reports/compare", {
+        params: {
+          report_a: reportA,
+          report_b: reportB,
+        },
+      });
 
-        return (
-          (versionFilter === "ALL" ||
-            version === versionFilter) &&
+      console.log("COMPARE RAW RESPONSE:", response.data);
 
-          (buildFilter === "ALL" ||
-            build === buildFilter) &&
+      const normalizedData = normalizeComparisonResponse(response.data);
 
-          (suiteFilter === "ALL" ||
-            suite === suiteFilter) &&
+      console.log("COMPARE NORMALIZED RESPONSE:", normalizedData);
 
-          (environmentFilter === "ALL" ||
-            environment === environmentFilter)
+      setComparisonData(normalizedData);
 
+      if (!normalizedData.comparison.length) {
+        setSuccessMessage("");
+        setErrorMessage(
+          "Compare completed, but no comparison rows were available to display."
         );
+        return;
       }
-    );
 
+      setSuccessMessage("Reports compared successfully.");
+    } catch (error) {
+      console.error("COMPARE ERROR:", error);
+
+      setComparisonData(null);
+      setSuccessMessage("");
+
+      const detail = error?.response?.data?.detail;
+
+      const message =
+        typeof detail === "string"
+          ? detail
+          : detail?.error ||
+            detail?.message ||
+            error.message ||
+            "Could not compare reports. Please check if the backend endpoint /reports/compare is working.";
+
+      setErrorMessage(message);
+    } finally {
+      setComparing(false);
+    }
+  }
+
+  function exportExcel() {
+    if (!comparisonRows.length) {
+      return;
+    }
+
+    const rows = comparisonRows.map((row) => ({
+      Action: row.action,
+      Hardware: row.hardware,
+      KPI: row.kpi,
+      Report_A_P90: row.report_a?.p90,
+      Report_B_P90: row.report_b?.p90,
+      Diff_ms: row.difference_ms,
+      Diff_Percent: row.difference_percent,
+      Result: row.result,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Comparison");
+
+    const excelBuffer = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "array",
+    });
+
+    const blob = new Blob([excelBuffer], {
+      type:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    saveAs(blob, `Compare_${reportA}_vs_${reportB}.xlsx`);
+  }
+
+  const availableVersions = useMemo(() => {
+    return [
+      ...new Set(
+        reports.map((report) => report.version || report.Version).filter(Boolean)
+      ),
+    ].sort();
+  }, [reports]);
+
+  const availableBuilds = useMemo(() => {
+    return [
+      ...new Set(
+        reports.map((report) => report.build || report.Build).filter(Boolean)
+      ),
+    ].sort();
+  }, [reports]);
+
+  const availableSuites = useMemo(() => {
+    return [
+      ...new Set(
+        reports.map((report) => report.suite || report.Suite).filter(Boolean)
+      ),
+    ].sort();
+  }, [reports]);
+
+  const availableEnvironments = useMemo(() => {
+    return [
+      ...new Set(
+        reports
+          .map((report) => report.environment || report.Environment)
+          .filter(Boolean)
+      ),
+    ].sort();
+  }, [reports]);
+
+  const metadataFilteredReports = useMemo(() => {
+    return reports.filter((report) => {
+      const version = report.version || report.Version;
+      const build = report.build || report.Build;
+      const suite = report.suite || report.Suite;
+      const environment = report.environment || report.Environment;
+
+      return (
+        (versionFilter === "ALL" || version === versionFilter) &&
+        (buildFilter === "ALL" || build === buildFilter) &&
+        (suiteFilter === "ALL" || suite === suiteFilter) &&
+        (environmentFilter === "ALL" || environment === environmentFilter)
+      );
+    });
   }, [
     reports,
     versionFilter,
@@ -684,55 +488,31 @@ const metadataFilteredReports = useMemo(() => {
     environmentFilter,
   ]);
 
-    const filteredReportsA =
-  useMemo(
-    () =>
-      filterReportsBySearch(
-        metadataFilteredReports,
-        reportSearchA
-      ),
-    [
-      metadataFilteredReports,
-      reportSearchA,
-    ]
-  );
-    
-
-const filteredReportsB =
-  useMemo(
-    () =>
-      filterReportsBySearch(
-        metadataFilteredReports,
-        reportSearchB
-      ),
-    [
-      metadataFilteredReports,
-      reportSearchB,
-    ]
+  const filteredReportsA = useMemo(
+    () => filterReportsBySearch(metadataFilteredReports, reportSearchA),
+    [metadataFilteredReports, reportSearchA]
   );
 
+  const filteredReportsB = useMemo(
+    () => filterReportsBySearch(metadataFilteredReports, reportSearchB),
+    [metadataFilteredReports, reportSearchB]
+  );
 
   const comparisonRows = useMemo(() => {
     const rows = comparisonData?.comparison || [];
     const search = searchText.trim().toLowerCase();
-    const actionMatch =
-  !search ||
-  `${row.action || ""} ${row.hardware || ""}`
-    .toLowerCase()
-    .includes(search);
 
     return rows
       .filter((row) => {
-        const actionMatch =
-          !search ||
-          String(row.action || "")
-            .toLowerCase()
-            .includes(search);
+        const searchableText = `${row.action || ""} ${row.hardware || ""}`
+          .toLowerCase();
+
+        const searchMatch = !search || searchableText.includes(search);
 
         const resultMatch =
           resultFilter === "All" || row.result === resultFilter;
 
-        return actionMatch && resultMatch;
+        return searchMatch && resultMatch;
       })
       .sort((a, b) => {
         const aResult = a.result || "";
@@ -753,25 +533,41 @@ const filteredReportsB =
       });
   }, [comparisonData, searchText, resultFilter]);
 
-const totalCompared = comparisonData?.total_actions || 0;
+  const groupedComparison = useMemo(() => {
+    const groups = {};
+
+    comparisonRows.forEach((row) => {
+      const action = row.action || "Unknown Action";
+
+      if (!groups[action]) {
+        groups[action] = [];
+      }
+
+      groups[action].push(row);
+    });
+
+    return groups;
+  }, [comparisonRows]);
+
+  const totalCompared = comparisonData?.total_actions || 0;
 
   const totalImproved = useMemo(() => {
-  return comparisonRows.filter(
-    row => row.difference_percent < 0
-  ).length;
-}, [comparisonRows]);
+    return (comparisonData?.comparison || []).filter(
+      (row) => row.result === "Improved"
+    ).length;
+  }, [comparisonData]);
 
-const totalWorse = useMemo(() => {
-  return comparisonRows.filter(
-    row => row.difference_percent > 0
-  ).length;
-}, [comparisonRows]);
+  const totalWorse = useMemo(() => {
+    return (comparisonData?.comparison || []).filter(
+      (row) => row.result === "Worse"
+    ).length;
+  }, [comparisonData]);
 
-const totalSame = useMemo(() => {
-  return comparisonRows.filter(
-    row => Math.abs(row.difference_percent) < 0.01
-  ).length;
-}, [comparisonRows]);
+  const totalSame = useMemo(() => {
+    return (comparisonData?.comparison || []).filter(
+      (row) => row.result === "Same"
+    ).length;
+  }, [comparisonData]);
 
   const reportALabel = buildReportLabel(getReportByRunId(reportA));
   const reportBLabel = buildReportLabel(getReportByRunId(reportB));
@@ -790,6 +586,7 @@ const totalSame = useMemo(() => {
           }}
         >
           <CircularProgress />
+
           <Typography variant="h6" fontWeight="bold">
             Loading reports...
           </Typography>
@@ -840,7 +637,8 @@ const totalSame = useMemo(() => {
                   color: "#607D8B",
                 }}
               >
-                Compare KPI results between two performance reports.
+                Compare KPI results between two performance reports by Action
+                and Hardware.
               </Typography>
             </Box>
 
@@ -851,6 +649,7 @@ const totalSame = useMemo(() => {
                 sx={{
                   backgroundColor: "#FFFFFF",
                   color: "#2E7D32",
+                  textTransform: "none",
                   "&:hover": {
                     backgroundColor: "#F1F8E9",
                   },
@@ -861,28 +660,32 @@ const totalSame = useMemo(() => {
 
               <Button
                 startIcon={<RefreshIcon />}
-            onClick={() => {
-  loadReports();
+                onClick={() => {
+                  loadReports();
 
-  setComparisonData(null);
+                  setComparisonData(null);
 
-  setReportA("");
-  setReportB("");
+                  setReportA("");
+                  setReportB("");
 
-  setReportSearchA("");
-  setReportSearchB("");
+                  setReportSearchA("");
+                  setReportSearchB("");
 
-  setVersionFilter("ALL");
-  setBuildFilter("ALL");
-  setSuiteFilter("ALL");
-  setEnvironmentFilter("ALL");
+                  setVersionFilter("ALL");
+                  setBuildFilter("ALL");
+                  setSuiteFilter("ALL");
+                  setEnvironmentFilter("ALL");
 
-  setSuccessMessage("");
-  setErrorMessage("");
-}}
+                  setSearchText("");
+                  setResultFilter("All");
+
+                  setSuccessMessage("");
+                  setErrorMessage("");
+                }}
                 sx={{
                   backgroundColor: "#FFFFFF",
                   color: "#2E7D32",
+                  textTransform: "none",
                   "&:hover": {
                     backgroundColor: "#F1F8E9",
                   },
@@ -919,7 +722,7 @@ const totalSame = useMemo(() => {
 
           <Typography color="text.secondary" sx={{ mb: 1 }}>
             Choose two different reports. The comparison uses the 90th Percentil
-            value from each report summary.
+            value from each report grouped by Action and Hardware.
           </Typography>
 
           <Typography color="text.secondary" variant="body2" sx={{ mb: 3 }}>
@@ -927,217 +730,159 @@ const totalSame = useMemo(() => {
             environment, date or run id to find a report faster.
           </Typography>
 
-          <Stack
-            direction={{ xs: "column", md: "row" }}
-            spacing={2}
-            alignItems={{ xs: "stretch", md: "center" }}
-          >
+          <Stack spacing={3}>
+            <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+              <FormControl fullWidth>
+                <InputLabel>Version</InputLabel>
+
+                <Select
+                  value={versionFilter}
+                  label="Version"
+                  onChange={(event) => setVersionFilter(event.target.value)}
+                >
+                  <MenuItem value="ALL">All</MenuItem>
+
+                  {availableVersions.map((item) => (
+                    <MenuItem key={item} value={item}>
+                      {item}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl fullWidth>
+                <InputLabel>Build</InputLabel>
+
+                <Select
+                  value={buildFilter}
+                  label="Build"
+                  onChange={(event) => setBuildFilter(event.target.value)}
+                >
+                  <MenuItem value="ALL">All</MenuItem>
+
+                  {availableBuilds.map((item) => (
+                    <MenuItem key={item} value={item}>
+                      {item}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl fullWidth>
+                <InputLabel>Suite</InputLabel>
+
+                <Select
+                  value={suiteFilter}
+                  label="Suite"
+                  onChange={(event) => setSuiteFilter(event.target.value)}
+                >
+                  <MenuItem value="ALL">All</MenuItem>
+
+                  {availableSuites.map((item) => (
+                    <MenuItem key={item} value={item}>
+                      {item}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl fullWidth>
+                <InputLabel>Environment</InputLabel>
+
+                <Select
+                  value={environmentFilter}
+                  label="Environment"
+                  onChange={(event) => setEnvironmentFilter(event.target.value)}
+                >
+                  <MenuItem value="ALL">All</MenuItem>
+
+                  {availableEnvironments.map((item) => (
+                    <MenuItem key={item} value={item}>
+                      {item}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Stack>
 
             <Stack
-  direction={{
-    xs: "column",
-    md: "row",
-  }}
-  spacing={2}
-  sx={{ mb: 3 }}
->
-
-  {/* Version */}
-  <FormControl fullWidth>
-    <InputLabel>
-      Version
-    </InputLabel>
-
-    <Select
-      value={versionFilter}
-      label="Version"
-      onChange={(event) =>
-        setVersionFilter(
-          event.target.value
-        )
-      }
-    >
-      <MenuItem value="ALL">
-        All
-      </MenuItem>
-
-      {availableVersions.map(
-        (item) => (
-          <MenuItem
-            key={item}
-            value={item}
-          >
-            {item}
-          </MenuItem>
-        )
-      )}
-    </Select>
-  </FormControl>
-
-  {/* Build */}
-  <FormControl fullWidth>
-    <InputLabel>
-      Build
-    </InputLabel>
-
-    <Select
-      value={buildFilter}
-      label="Build"
-      onChange={(event) =>
-        setBuildFilter(
-          event.target.value
-        )
-      }
-    >
-      <MenuItem value="ALL">
-        All
-      </MenuItem>
-
-      {availableBuilds.map(
-        (item) => (
-          <MenuItem
-            key={item}
-            value={item}
-          >
-            {item}
-          </MenuItem>
-        )
-      )}
-    </Select>
-  </FormControl>
-
-  {/* Suite */}
-  <FormControl fullWidth>
-    <InputLabel>
-      Suite
-    </InputLabel>
-
-    <Select
-      value={suiteFilter}
-      label="Suite"
-      onChange={(event) =>
-        setSuiteFilter(
-          event.target.value
-        )
-      }
-    >
-      <MenuItem value="ALL">
-        All
-      </MenuItem>
-
-      {availableSuites.map(
-        (item) => (
-          <MenuItem
-            key={item}
-            value={item}
-          >
-            {item}
-          </MenuItem>
-        )
-      )}
-    </Select>
-  </FormControl>
-
-  {/* Environment */}
-  <FormControl fullWidth>
-    <InputLabel>
-      Environment
-    </InputLabel>
-
-    <Select
-      value={environmentFilter}
-      label="Environment"
-      onChange={(event) =>
-        setEnvironmentFilter(
-          event.target.value
-        )
-      }
-    >
-      <MenuItem value="ALL">
-        All
-      </MenuItem>
-
-      {availableEnvironments.map(
-        (item) => (
-          <MenuItem
-            key={item}
-            value={item}
-          >
-            {item}
-          </MenuItem>
-        )
-      )}
-    </Select>
-  </FormControl>
-
-</Stack>
-
-            <Autocomplete
-              fullWidth
-              options={filteredReportsA}
-              value={getReportByRunId(reportA)}
-              inputValue={reportSearchA}
-              getOptionLabel={(option) => buildReportLabel(option)}
-              isOptionEqualToValue={(option, value) =>
-                normalizeRunId(option) === normalizeRunId(value)
-              }
-              noOptionsText="No reports found"
-              onInputChange={(_, newInputValue) => {
-                setReportSearchA(newInputValue);
-              }}
-              onChange={(_, selectedReport) => {
-                setReportA(selectedReport ? normalizeRunId(selectedReport) : "");
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Report A"
-                  placeholder="Search by version, bundle, SESRM, environment or date"
-                />
-              )}
-            />
-
-            <Autocomplete
-              fullWidth
-              options={filteredReportsB}
-              value={getReportByRunId(reportB)}
-              inputValue={reportSearchB}
-              getOptionLabel={(option) => buildReportLabel(option)}
-              isOptionEqualToValue={(option, value) =>
-                normalizeRunId(option) === normalizeRunId(value)
-              }
-              noOptionsText="No reports found"
-              onInputChange={(_, newInputValue) => {
-                setReportSearchB(newInputValue);
-              }}
-              onChange={(_, selectedReport) => {
-                setReportB(selectedReport ? normalizeRunId(selectedReport) : "");
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Report B"
-                  placeholder="Search by version, bundle, SESRM, environment or date"
-                />
-              )}
-            />
-
-            <Button
-              onClick={handleCompare}
-              disabled={comparing || reports.length < 2}
-              startIcon={<CompareArrowsIcon />}
-              sx={{
-                backgroundColor: "#4CAF50",
-                color: "#FFFFFF",
-                minWidth: 160,
-                height: 56,
-                "&:hover": {
-                  backgroundColor: "#43A047",
-                },
-              }}
+              direction={{ xs: "column", md: "row" }}
+              spacing={2}
+              alignItems={{ xs: "stretch", md: "center" }}
             >
-              {comparing ? "Comparing..." : "Compare"}
-            </Button>
+              <Autocomplete
+                fullWidth
+                options={filteredReportsA}
+                value={getReportByRunId(reportA)}
+                inputValue={reportSearchA}
+                getOptionLabel={(option) => buildReportLabel(option)}
+                isOptionEqualToValue={(option, value) =>
+                  normalizeRunId(option) === normalizeRunId(value)
+                }
+                noOptionsText="No reports found"
+                onInputChange={(_, newInputValue) => {
+                  setReportSearchA(newInputValue);
+                }}
+                onChange={(_, selectedReport) => {
+                  setReportA(
+                    selectedReport ? normalizeRunId(selectedReport) : ""
+                  );
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Report A"
+                    placeholder="Select Report A"
+                  />
+                )}
+              />
+
+              <Autocomplete
+                fullWidth
+                options={filteredReportsB}
+                value={getReportByRunId(reportB)}
+                inputValue={reportSearchB}
+                getOptionLabel={(option) => buildReportLabel(option)}
+                isOptionEqualToValue={(option, value) =>
+                  normalizeRunId(option) === normalizeRunId(value)
+                }
+                noOptionsText="No reports found"
+                onInputChange={(_, newInputValue) => {
+                  setReportSearchB(newInputValue);
+                }}
+                onChange={(_, selectedReport) => {
+                  setReportB(
+                    selectedReport ? normalizeRunId(selectedReport) : ""
+                  );
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Report B"
+                    placeholder="Select Report B"
+                  />
+                )}
+              />
+
+              <Button
+                onClick={handleCompare}
+                disabled={comparing || reports.length < 2}
+                startIcon={<CompareArrowsIcon />}
+                sx={{
+                  backgroundColor: "#4CAF50",
+                  color: "#FFFFFF",
+                  minWidth: 160,
+                  height: 56,
+                  textTransform: "none",
+                  fontWeight: "bold",
+                  "&:hover": {
+                    backgroundColor: "#43A047",
+                  },
+                }}
+              >
+                {comparing ? "Comparing..." : "Compare"}
+              </Button>
+            </Stack>
           </Stack>
         </Paper>
 
@@ -1145,6 +890,7 @@ const totalSame = useMemo(() => {
           <Paper sx={{ p: 3, borderRadius: 4, mb: 4 }}>
             <Stack direction="row" spacing={2} alignItems="center">
               <CircularProgress size={24} />
+
               <Typography color="text.secondary">
                 Comparing selected reports...
               </Typography>
@@ -1161,8 +907,9 @@ const totalSame = useMemo(() => {
             >
               <Paper sx={{ p: 3, borderRadius: 4, flex: 1 }}>
                 <Typography color="text.secondary" fontWeight="bold">
-                  Compared Actions
+                  Compared Rows
                 </Typography>
+
                 <Typography variant="h3" fontWeight="bold">
                   {totalCompared}
                 </Typography>
@@ -1172,6 +919,7 @@ const totalSame = useMemo(() => {
                 <Typography color="text.secondary" fontWeight="bold">
                   Improved
                 </Typography>
+
                 <Typography variant="h3" fontWeight="bold" color="success.main">
                   {totalImproved}
                 </Typography>
@@ -1181,6 +929,7 @@ const totalSame = useMemo(() => {
                 <Typography color="text.secondary" fontWeight="bold">
                   Worse
                 </Typography>
+
                 <Typography variant="h3" fontWeight="bold" color="error.main">
                   {totalWorse}
                 </Typography>
@@ -1190,6 +939,7 @@ const totalSame = useMemo(() => {
                 <Typography color="text.secondary" fontWeight="bold">
                   Same
                 </Typography>
+
                 <Typography variant="h3" fontWeight="bold" color="info.main">
                   {totalSame}
                 </Typography>
@@ -1210,6 +960,7 @@ const totalSame = useMemo(() => {
                   <Typography fontWeight="bold" color="primary">
                     Report A
                   </Typography>
+
                   <Typography color="text.secondary">{reportALabel}</Typography>
                 </Box>
 
@@ -1217,6 +968,7 @@ const totalSame = useMemo(() => {
                   <Typography fontWeight="bold" color="primary">
                     Report B
                   </Typography>
+
                   <Typography color="text.secondary">{reportBLabel}</Typography>
                 </Box>
               </Stack>
@@ -1233,24 +985,24 @@ const totalSame = useMemo(() => {
                 alignItems={{ xs: "stretch", md: "center" }}
               >
                 <TextField
-                  label="Search Action"
+                  label="Search Action or Hardware"
                   value={searchText}
                   onChange={(event) => setSearchText(event.target.value)}
                   fullWidth
                 />
 
                 <FormControl sx={{ minWidth: 220 }}>
-                  <InputLabel>Result</InputLabel>
+                  <InputLabel>Change</InputLabel>
+
                   <Select
                     value={resultFilter}
-                    label="Result"
+                    label="Change"
                     onChange={(event) => setResultFilter(event.target.value)}
                   >
                     <MenuItem value="All">All</MenuItem>
                     <MenuItem value="Improved">Improved</MenuItem>
                     <MenuItem value="Worse">Worse</MenuItem>
                     <MenuItem value="Same">Same</MenuItem>
-                    <MenuItem value="N/A">N/A</MenuItem>
                   </Select>
                 </FormControl>
 
@@ -1277,6 +1029,13 @@ const totalSame = useMemo(() => {
                   color="success"
                   onClick={exportExcel}
                   disabled={!comparisonRows.length}
+                  sx={{
+                    height: 56,
+                    minWidth: 140,
+                    borderRadius: 3,
+                    fontWeight: "bold",
+                    textTransform: "none",
+                  }}
                 >
                   Export Excel
                 </Button>
@@ -1286,13 +1045,14 @@ const totalSame = useMemo(() => {
             <Paper sx={{ borderRadius: 4, overflow: "hidden" }}>
               <Box sx={{ p: 3 }}>
                 <Typography variant="h5" fontWeight="bold">
-                  KPI Comparison
+                  KPI Comparison by Action and Hardware
                 </Typography>
-                  <Typography color="text.secondary" sx={{ mt: 1 }}>
-                    Differences are calculated using Report B compared to Report A.
-                    Negative values (green) indicate improvement.
-                    Positive values (red) indicate regression.
-                  </Typography>
+
+                <Typography color="text.secondary" sx={{ mt: 1 }}>
+                  Differences are calculated using Report B compared to Report A.
+                  Negative values (green) indicate improvement. Positive values
+                  (red) indicate regression.
+                </Typography>
               </Box>
 
               {comparisonRows.length === 0 ? (
@@ -1300,89 +1060,131 @@ const totalSame = useMemo(() => {
                   No comparison rows found for the selected filters.
                 </Alert>
               ) : (
-                <TableContainer>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: "#eef3f8" }}>
-                        <TableCell sx={{ fontWeight: "bold" }}>Action</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: "bold" }}>
-                          KPI
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: "bold" }}>
-                          Report A P90
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: "bold" }}>
-                          Report B P90
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: "bold" }}>
-                          Diff ms
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: "bold" }}>
-                          Diff %
-                        </TableCell>
-                      </TableRow>
-                    </TableHead>
+                <Box sx={{ p: 2 }}>
+                  {Object.entries(groupedComparison).map(([action, rows]) => (
+                    <Paper
+                      key={action}
+                      sx={{
+                        mb: 4,
+                        p: 3,
+                        borderRadius: 4,
+                        backgroundColor: "#ffffff",
+                        boxShadow: "0 6px 18px rgba(0,0,0,0.05)",
+                      }}
+                    >
+                      <Stack
+                        direction="row"
+                        spacing={2}
+                        alignItems="center"
+                        sx={{ mb: 1 }}
+                      >
+                        <Typography
+                          variant="h5"
+                          fontWeight="bold"
+                          color="success.main"
+                        >
+                          {action}
+                        </Typography>
 
-                    <TableBody>
-                      {comparisonRows.map((row, index) => {
-                        const reportAStatus = row.report_a?.status || "NO KPI";
-                        const reportBStatus = row.report_b?.status || "NO KPI";
+                        <Chip
+                          label={`${rows.length} hardware result(s)`}
+                          size="small"
+                          color="success"
+                          variant="outlined"
+                        />
+                      </Stack>
 
-                        return (
-                          <TableRow key={`${row.action}-${index}`} hover>
-                            <TableCell>
-                              <Typography fontWeight="bold">
-                                {row.action || "-"}
-                              </Typography>
-                            </TableCell>
+                      <Typography color="text.secondary" sx={{ mb: 2 }}>
+                        Comparison results for this action.
+                      </Typography>
 
-                            <TableCell align="right">
-                              {formatNumber(row.kpi, 0)}
-                            </TableCell>
+                      <TableContainer component={Paper} variant="outlined">
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow sx={{ backgroundColor: "#eef3f8" }}>
+                              <TableCell>
+                                <strong>Hardware</strong>
+                              </TableCell>
 
-                            <TableCell align="right">
-                              {formatNumber(row.report_a?.p90)}
-                            </TableCell>
+                              <TableCell align="right">
+                                <strong>KPI</strong>
+                              </TableCell>
 
-                            <TableCell align="right">
-                              {formatNumber(row.report_b?.p90)}
-                            </TableCell>
+                              <TableCell align="right">
+                                <strong>Report A P90</strong>
+                              </TableCell>
 
-                            <TableCell
-                              align="right"
-                              sx={{
-                                color:
-                                  row.difference_ms > 0
-                                    ? "error.main"
-                                    : row.difference_ms < 0
-                                    ? "success.main"
-                                    : "text.primary",
-                                fontWeight: "bold",
-                              }}
-                            >
-                              {formatNumber(row.difference_ms)}
-                            </TableCell>
+                              <TableCell align="right">
+                                <strong>Report B P90</strong>
+                              </TableCell>
 
-                            <TableCell
-                            align="right"
-                            sx={{
-                              color:
-                                row.difference_percent > 0
-                                  ? "error.main"
-                                  : row.difference_percent < 0
-                                  ? "success.main"
-                                  : "text.primary",
-                              fontWeight: "bold",
-                            }}
-                          >
-                            {formatPercent(row.difference_percent)}
-                          </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                              <TableCell align="right">
+                                <strong>Diff ms</strong>
+                              </TableCell>
+
+                              <TableCell align="right">
+                                <strong>Diff %</strong>
+                              </TableCell>
+                            </TableRow>
+                          </TableHead>
+
+                          <TableBody>
+                            {rows.map((row, index) => (
+                              <TableRow
+                                key={`${row.action}-${row.hardware}-${index}`}
+                                hover
+                              >
+                                <TableCell>{row.hardware || "-"}</TableCell>
+
+                                <TableCell align="right">
+                                  {formatNumber(row.kpi, 0)}
+                                </TableCell>
+
+                                <TableCell align="right">
+                                  {formatNumber(row.report_a?.p90)}
+                                </TableCell>
+
+                                <TableCell align="right">
+                                  {formatNumber(row.report_b?.p90)}
+                                </TableCell>
+
+                                <TableCell
+                                  align="right"
+                                  sx={{
+                                    color:
+                                      row.difference_ms > 0
+                                        ? "error.main"
+                                        : row.difference_ms < 0
+                                        ? "success.main"
+                                        : "text.primary",
+                                    fontWeight: "bold",
+                                  }}
+                                >
+                                  {formatNumber(row.difference_ms)}
+                                </TableCell>
+
+                                <TableCell
+                                  align="right"
+                                  sx={{
+                                    color:
+                                      row.difference_percent > 0
+                                        ? "error.main"
+                                        : row.difference_percent < 0
+                                        ? "success.main"
+                                        : "text.primary",
+                                    fontWeight: "bold",
+                                  }}
+                                >
+                                  {formatPercent(row.difference_percent)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    </Paper>
+                  ))}
+                </Box>
               )}
 
               <Stack
@@ -1392,11 +1194,12 @@ const totalSame = useMemo(() => {
                 sx={{ p: 2 }}
               >
                 <Typography color="text.secondary">
-                  Showing {comparisonRows.length} of {totalCompared} action(s)
+                  Showing {comparisonRows.length} of {totalCompared} row(s)
                 </Typography>
 
                 <Typography color="text.secondary">
-                  Ordered by regressions first, then highest percentage difference.
+                  Ordered by regressions first, then highest percentage
+                  difference.
                 </Typography>
               </Stack>
             </Paper>

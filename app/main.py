@@ -287,6 +287,180 @@ async def upload_counters(run_id: str, file: UploadFile = File(...)):
     return {"message": "Counters uploaded", "run_id": run_id}
 
 # =========================
+# PROCESSES
+# =========================
+
+@app.get("/runs/{run_id}/processes")
+def get_processes(run_id: str):
+    try:
+        data = load_processes_json(run_id)
+
+        if not data:
+            return {
+                "run_id": run_id,
+                "records": [],
+            }
+
+        return {
+            "run_id": run_id,
+            "records": data,
+        }
+
+    except Exception as error:
+        return build_error_response(
+            "processes",
+            error,
+            {
+                "run_id": run_id,
+            },
+        )
+
+
+# =========================
+# PROCESSES
+# =========================
+
+@app.get("/runs/{run_id}/processes")
+def get_processes(run_id: str):
+    try:
+
+        records = load_processes_json(run_id)
+
+        if not records:
+            return {
+                "run_id": run_id,
+                "records": [],
+            }
+
+        return {
+            "run_id": run_id,
+            "records": records,
+            "total": len(records),
+        }
+
+    except Exception as error:
+        return build_error_response(
+            "processes",
+            error,
+            {
+                "run_id": run_id,
+            },
+        )
+
+
+@app.post("/runs/{run_id}/upload/processes-file")
+async def upload_processes_file(
+    run_id: str,
+    file: UploadFile = File(...)
+):
+    try:
+
+        ensure_run_folders(run_id)
+
+        contents = await file.read()
+
+
+        records = extract_processes_from_json(
+            contents.decode("utf-8")
+
+        )
+
+        save_processes_json(
+            run_id,
+            records
+        )
+
+        return {
+            "run_id": run_id,
+            "records": records,
+            "total": len(records),
+            "message": f"{len(records)} process record(s) loaded",
+        }
+
+    except Exception as error:
+
+        return build_error_response(
+            "processes-upload",
+            error,
+            {
+                "run_id": run_id,
+                "filename": file.filename,
+            },
+        )# =========================
+# PROCESSES
+# =========================
+
+@app.get("/runs/{run_id}/processes")
+def get_processes(run_id: str):
+    try:
+
+        records = load_processes_json(run_id)
+
+        if not records:
+            return {
+                "run_id": run_id,
+                "records": [],
+            }
+
+        return {
+            "run_id": run_id,
+            "records": records,
+            "total": len(records),
+        }
+
+    except Exception as error:
+        return build_error_response(
+            "processes",
+            error,
+            {
+                "run_id": run_id,
+            },
+        )
+
+
+@app.post("/runs/{run_id}/upload/processes-file")
+async def upload_processes_file(
+    run_id: str,
+    file: UploadFile = File(...)
+):
+    try:
+
+        ensure_run_folders(run_id)
+
+        contents = await file.read()
+
+        json_data = json.loads(
+            contents.decode("utf-8")
+        )
+
+        records = extract_processes_from_json(
+            json_data
+        )
+
+        save_processes_json(
+            run_id,
+            records
+        )
+
+        return {
+            "run_id": run_id,
+            "records": records,
+            "total": len(records),
+            "message": f"{len(records)} process record(s) loaded",
+        }
+
+    except Exception as error:
+
+        return build_error_response(
+            "processes-upload",
+            error,
+            {
+                "run_id": run_id,
+                "filename": file.filename,
+            },
+        )
+
+# =========================
 # SUMMARY (CRÍTICO)
 # =========================
 
