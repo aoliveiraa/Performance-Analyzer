@@ -248,7 +248,10 @@ def compare_reports_endpoint(report_a: str, report_b: str):
     try:
         return compare_reports(report_a, report_b)
     except Exception as e:
-        return build_error_response("compare", e)
+        raise HTTPException(
+            status_code=500,
+            detail=build_error_response("compare", e),
+        )
 
 # =========================
 # UPLOADS

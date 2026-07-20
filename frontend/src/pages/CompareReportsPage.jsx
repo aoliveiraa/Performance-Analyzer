@@ -96,13 +96,6 @@ const [environmentFilter, setEnvironmentFilter] =
 
       setComparisonData(null);
 
-      if (data.length >= 2) {
-  const firstReport = normalizeRunId(data[0]);
-  const secondReport = normalizeRunId(data[1]);
-
-  setReportA(firstReport);
-  setReportB(secondReport);
-}
 
     } catch (error) {
       console.error(error);
@@ -201,44 +194,233 @@ function filterReportsBySearch(
         .includes(search)
   );
 }
+
+function normalizeComparisonResponse(rawData) {
+  if (!rawData) {
+    return {
+      comparison: [],
+      total_actions: 0,
+    };
+  }
+
+  if (rawData.error || rawData.traceback || rawData.context === "compare") {
+    throw new Error(
+      rawData.error ||
+        "Backend returned an error while comparing reports."
+    );
+  }
+
+  const rawRows =
+    rawData.comparison ||
+    rawData.comparisons ||
+    rawData.records ||
+    rawData.rows ||
+    rawData.data ||
+    [];
+
+  const rows = Array.isArray(rawRows) ? rawRows : [];
+
+  const normalizedRows = rows.map((row) => {
+    const action =
+      row.action ||
+      row.Action ||
+      row.ActionName ||
+      row.action_name ||
+      "-";
+
+    const hardware =
+      row.hardware ||
+      row.Hardware ||
+      row.HardwareName ||
+      row.Machine ||
+      row.Device ||
+      "Unknown Hardware";
+
+    const kpi =
+      row.kpi ??
+      row.KPI ??
+      row.Kpi ??
+      row.KPI_A ??
+      row.KPI_B ??
+      0;
+
+    const reportAP90 =
+      row.report_a?.p90 ??
+      row.P90_A ??
+      row.ReportA_P90 ??
+      row.Report_A_P90 ??
+      row["Report A P90"] ??
+      row["90th Percentil_A"] ??
+      row["90th Percentile_A"] ??
+      row.p90_a ??
+      0;
+
+    const reportBP90 =
+      row.report_b?.p90 ??
+      row.P90_B ??
+      row.ReportB_P90 ??
+      row.Report_B_P90 ??
+      row["Report B P90"] ??
+      row["90th Percentil_B"] ??
+      row["90th Percentile_B"] ??
+      row.p90_b ??
+      0;
+
+    const reportAStatus =
+      row.report_a?.status ||
+      row.Status_A ||
+      row.ReportA_Status ||
+      row.Report_A_Status ||
+      row["Report A Status"] ||
+      "NO KPI";
+
+    const reportBStatus =
+      row.report_b?.status ||
+      row.Status_B ||
+      row.ReportB_Status ||
+      row.Report_B_Status ||
+      row["Report B Status"] ||
+      "NO KPI";
+
+    const differenceMs =
+      row.difference_ms ??
+      row.Diff_ms ??
+      row.diff_ms ??
+      row["Diff ms"] ??
+      reportBP90 - reportAP90;
+
+    const differencePercent =
+      row.difference_percent ??
+      row.Diff_Percent ??
+      row.diff_percent ??
+      row["Diff %"] ??
+      (
+        reportAP90 > 0
+          ? ((reportBP90 - reportAP90) / reportAP90) * 100
+          : 0
+      );
+
+    let result =
+      row.result ||
+      row.Result ||
+      row.comparison_result ||
+      "N/A";
+
+    if (result === "Better") {
+      result = "Improved";
+    }
+
+    if (result === "Regression") {
+      result = "Worse";
+    }
+
+    if (result === "N/A") {
+      if (differencePercent < 0) {
+        result = "Improved";
+      } else if (differencePercent > 0) {
+        result = "Worse";
+      } else {
+        result = "Same";
+      }
+    }
+
+    return {
+      action,
+      hardware,
+      kpi,
+
+      report_a: {
+        p90: reportAP90,
+        status: reportAStatus,
+      },
+
+      report_b: {
+        p90: reportBP90,
+        status: reportBStatus,
+      },
+
+      difference_ms: differenceMs,
+      difference_percent: differencePercent,
+      result,
+
+      raw: row,
+    };
+  });
+
+  return {
+    ...rawData,
+    comparison: normalizedRows,
+    total_actions:
+      rawData.total_actions ??
+      rawData.totalActions ??
+      rawData.total ??
+      normalizedRows.length,
+  };
+}
   async function handleCompare() {
-    if (!reportA || !reportB) {
-      setErrorMessage("Please select two reports to compare.");
-      setSuccessMessage("");
-      return;
-    }
+  if (!reportA || !reportB) {
+    setErrorMessage("Please select two reports to compare.");
+    setSuccessMessage("");
+    return;
+  }
 
-    if (reportA === reportB) {
-      setErrorMessage("Please select two different reports.");
-      setSuccessMessage("");
-      return;
-    }
+  if (reportA === reportB) {
+    setErrorMessage("Please select two different reports.");
+    setSuccessMessage("");
+    return;
+  }
 
-    setComparing(true);
-    setErrorMessage("");
+  setComparing(true);
+  setErrorMessage("");
+  setSuccessMessage("");
+  setComparisonData(null);
+
+  try {
+    const response = await api.get("/reports/compare", {
+      params: {
+        report_a: reportA,
+        report_b: reportB,
+      },
+    });
+
+    console.log("COMPARE RAW RESPONSE:", response.data);
+
+    const normalizedData = normalizeComparisonResponse(response.data);
+
+    console.log("COMPARE NORMALIZED RESPONSE:", normalizedData);
+
+    setComparisonData(normalizedData);
+
+    if (!normalizedData.comparison.length) {
+  setSuccessMessage("");
+  setErrorMessage(
+    "Compare completed, but no comparison rows were available to display."
+  );
+  return;
+}
+
+    setSuccessMessage("Reports compared successfully.");
+  } catch (error) {
+    console.error("COMPARE ERROR:", error);
+
+    setComparisonData(null);
     setSuccessMessage("");
 
-    try {
-      const response = await api.get("/reports/compare", {
-        params: {
-          report_a: reportA,
-          report_b: reportB,
-        },
-      });
+    const detail = error?.response?.data?.detail;
 
-      setComparisonData(response.data);
-      setSuccessMessage("Reports compared successfully.");
-    } catch (error) {
-      console.error(error);
-      setComparisonData(null);
+    const message =
+      typeof detail === "string"
+        ? detail
+        : detail?.error ||
+          detail?.message ||
+          error.message ||
+          "Could not compare reports. Please check if the backend endpoint /reports/compare is working.";
 
-      setErrorMessage(
-        "Could not compare reports. Please check if the backend endpoint /reports/compare is working."
-      );
-    } finally {
-      setComparing(false);
-    }
+    setErrorMessage(message);
+  } finally {
+    setComparing(false);
   }
+}
 
   function exportExcel() {
 
@@ -533,6 +715,11 @@ const filteredReportsB =
   const comparisonRows = useMemo(() => {
     const rows = comparisonData?.comparison || [];
     const search = searchText.trim().toLowerCase();
+    const actionMatch =
+  !search ||
+  `${row.action || ""} ${row.hardware || ""}`
+    .toLowerCase()
+    .includes(search);
 
     return rows
       .filter((row) => {
@@ -566,25 +753,25 @@ const filteredReportsB =
       });
   }, [comparisonData, searchText, resultFilter]);
 
-  const totalCompared = comparisonData?.total_actions || 0;
+const totalCompared = comparisonData?.total_actions || 0;
 
   const totalImproved = useMemo(() => {
-    return (comparisonData?.comparison || []).filter(
-      (row) => row.result === "Improved"
-    ).length;
-  }, [comparisonData]);
+  return comparisonRows.filter(
+    row => row.difference_percent < 0
+  ).length;
+}, [comparisonRows]);
 
-  const totalWorse = useMemo(() => {
-    return (comparisonData?.comparison || []).filter(
-      (row) => row.result === "Worse"
-    ).length;
-  }, [comparisonData]);
+const totalWorse = useMemo(() => {
+  return comparisonRows.filter(
+    row => row.difference_percent > 0
+  ).length;
+}, [comparisonRows]);
 
-  const totalSame = useMemo(() => {
-    return (comparisonData?.comparison || []).filter(
-      (row) => row.result === "Same"
-    ).length;
-  }, [comparisonData]);
+const totalSame = useMemo(() => {
+  return comparisonRows.filter(
+    row => Math.abs(row.difference_percent) < 0.01
+  ).length;
+}, [comparisonRows]);
 
   const reportALabel = buildReportLabel(getReportByRunId(reportA));
   const reportBLabel = buildReportLabel(getReportByRunId(reportB));
@@ -1101,10 +1288,11 @@ const filteredReportsB =
                 <Typography variant="h5" fontWeight="bold">
                   KPI Comparison
                 </Typography>
-                <Typography color="text.secondary" sx={{ mt: 1 }}>
-                  Differences are calculated using Report B compared to Report A.
-                  Negative values mean improvement.
-                </Typography>
+                  <Typography color="text.secondary" sx={{ mt: 1 }}>
+                    Differences are calculated using Report B compared to Report A.
+                    Negative values (green) indicate improvement.
+                    Positive values (red) indicate regression.
+                  </Typography>
               </Box>
 
               {comparisonRows.length === 0 ? (
@@ -1123,14 +1311,8 @@ const filteredReportsB =
                         <TableCell align="right" sx={{ fontWeight: "bold" }}>
                           Report A P90
                         </TableCell>
-                        <TableCell sx={{ fontWeight: "bold" }}>
-                          Report A Status
-                        </TableCell>
                         <TableCell align="right" sx={{ fontWeight: "bold" }}>
                           Report B P90
-                        </TableCell>
-                        <TableCell sx={{ fontWeight: "bold" }}>
-                          Report B Status
                         </TableCell>
                         <TableCell align="right" sx={{ fontWeight: "bold" }}>
                           Diff ms
@@ -1138,7 +1320,6 @@ const filteredReportsB =
                         <TableCell align="right" sx={{ fontWeight: "bold" }}>
                           Diff %
                         </TableCell>
-                        <TableCell sx={{ fontWeight: "bold" }}>Result</TableCell>
                       </TableRow>
                     </TableHead>
 
@@ -1163,44 +1344,39 @@ const filteredReportsB =
                               {formatNumber(row.report_a?.p90)}
                             </TableCell>
 
-                            <TableCell>
-                              <Chip
-                                size="small"
-                                color={getStatusColor(reportAStatus)}
-                                label={reportAStatus}
-                                icon={getStatusIcon(reportAStatus)}
-                              />
-                            </TableCell>
-
                             <TableCell align="right">
                               {formatNumber(row.report_b?.p90)}
                             </TableCell>
 
-                            <TableCell>
-                              <Chip
-                                size="small"
-                                color={getStatusColor(reportBStatus)}
-                                label={reportBStatus}
-                                icon={getStatusIcon(reportBStatus)}
-                              />
-                            </TableCell>
-
-                            <TableCell align="right">
+                            <TableCell
+                              align="right"
+                              sx={{
+                                color:
+                                  row.difference_ms > 0
+                                    ? "error.main"
+                                    : row.difference_ms < 0
+                                    ? "success.main"
+                                    : "text.primary",
+                                fontWeight: "bold",
+                              }}
+                            >
                               {formatNumber(row.difference_ms)}
                             </TableCell>
 
-                            <TableCell align="right">
-                              {formatPercent(row.difference_percent)}
-                            </TableCell>
-
-                            <TableCell>
-                              <Chip
-                                size="small"
-                                color={getResultColor(row.result)}
-                                label={getResultLabel(row.result)}
-                                sx={{ fontWeight: "bold" }}
-                              />
-                            </TableCell>
+                            <TableCell
+                            align="right"
+                            sx={{
+                              color:
+                                row.difference_percent > 0
+                                  ? "error.main"
+                                  : row.difference_percent < 0
+                                  ? "success.main"
+                                  : "text.primary",
+                              fontWeight: "bold",
+                            }}
+                          >
+                            {formatPercent(row.difference_percent)}
+                          </TableCell>
                           </TableRow>
                         );
                       })}

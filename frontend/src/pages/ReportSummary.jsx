@@ -170,104 +170,123 @@ const formatMilliseconds = (value) => {
     <Container maxWidth="xl">
       <Box sx={{ py: 4 }}>
         <Paper
-          elevation={0}
-          sx={{
-            p: 4,
-            mb: 4,
-            borderRadius: 4,
-            background:
-              "#ffffff",
-            color: "white",
-          }}
-        >
-          <Stack
-            direction={{ xs: "column", md: "row" }}
-            justifyContent="space-between"
-            alignItems={{ xs: "flex-start", md: "center" }}
-            spacing={2}
-          >
-            <Box>
-              <Typography variant="h3" fontWeight="bold">
-                Report Summary
-              </Typography>
+  elevation={0}
+  sx={{
+    p: 4,
+    mb: 4,
+    borderRadius: 4,
+    border: "1px solid #e5e7eb",
+    backgroundColor: "#ffffff",
+  }}
+>
+          <Stack spacing={3}>
+  <Box>
+    <Typography
+      variant="h3"
+      fontWeight="bold"
+      color="#1f2937"
+    >
+      Report Summary
+    </Typography>
 
-              <Typography sx={{ mt: 1, opacity: 0.9 }}>
-                {reportMetadata
-                  ? [
-                      reportMetadata.version,
-                      reportMetadata.build,
-                      reportMetadata.suite,
-                      reportMetadata.environment,
-                      reportMetadata.date,
-                    ]
-                      .filter(Boolean)
-                      .join(" | ")
-                  : "Loading report information..."}
-              </Typography>
-            </Box>
+    <Typography
+      sx={{
+        mt: 1,
+        color: "#64748b",
+        fontSize: 14,
+      }}
+    >
+      {reportMetadata
+        ? [
+            reportMetadata.version,
+            reportMetadata.build,
+            reportMetadata.suite,
+            reportMetadata.environment,
+            reportMetadata.date,
+          ]
+            .filter(Boolean)
+            .join(" • ")
+        : "Loading report information..."}
+    </Typography>
+  </Box>
 
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-              <Button
-                component={Link}
-                to={`/report/${runId}/details`}
-                variant="contained"
-                color="inherit"
-                startIcon={<TableChartIcon />}
-                sx={{
-                  color: "#0d47a1",
-                  fontWeight: "bold",
-                  borderRadius: 3,
-                }}
-              >
-                Expand Report
-              </Button>
+  <Stack
+    direction="row"
+    spacing={1}
+    flexWrap="wrap"
+    useFlexGap
+  >
+    <Button
+      component={Link}
+      to={`/report/${runId}`}
+      variant="contained"
+      sx={{
+        backgroundColor: "#43a047",
+        color: "white",
+        fontWeight: 700,
+        borderRadius: 2,
+        textTransform: "none",
+        "&:hover": {
+          backgroundColor: "#388e3c",
+        },
+      }}
+    >
+      Summary
+    </Button>
 
-              <Button
-                component={Link}
-                to={`/report/${runId}/upload`}
-                variant="contained"
-                color="inherit"
-                startIcon={<UploadFileIcon />}
-                sx={{
-                  color: "#0d47a1",
-                  fontWeight: "bold",
-                  borderRadius: 3,
-                }}
-              >
-                Upload Files
-              </Button>
+    <Button
+      component={Link}
+      to={`/report/${runId}/details`}
+      variant="outlined"
+      startIcon={<TableChartIcon />}
+      sx={{
+        borderRadius: 2,
+        textTransform: "none",
+      }}
+    >
+      Details
+    </Button>
 
-              <Button
-                component={Link}
-                to={`/report/${runId}/charts`}
-                variant="contained"
-                color="inherit"
-                startIcon={<InsertChartIcon />}
-                sx={{
-                  color: "#0d47a1",
-                  fontWeight: "bold",
-                  borderRadius: 3,
-                }}
-              >
-                Charts
-              </Button>
+    <Button
+      component={Link}
+      to={`/report/${runId}/upload`}
+      variant="outlined"
+      startIcon={<UploadFileIcon />}
+      sx={{
+        borderRadius: 2,
+        textTransform: "none",
+      }}
+    >
+      Upload
+    </Button>
 
-              <Button
-                component={Link}
-                to={`/report/${runId}/processes`}
-                variant="contained"
-                color="inherit"
-                startIcon={<MemoryIcon />}
-                sx={{
-                  color: "#0d47a1",
-                  fontWeight: "bold",
-                  borderRadius: 3,
-                }}
-              >
-                Processes
-              </Button>
-            </Stack>
-          </Stack>
+    <Button
+      component={Link}
+      to={`/report/${runId}/charts`}
+      variant="outlined"
+      startIcon={<InsertChartIcon />}
+      sx={{
+        borderRadius: 2,
+        textTransform: "none",
+      }}
+    >
+      Charts
+    </Button>
+
+    <Button
+      component={Link}
+      to={`/report/${runId}/processes`}
+      variant="outlined"
+      startIcon={<MemoryIcon />}
+      sx={{
+        borderRadius: 2,
+        textTransform: "none",
+      }}
+    >
+      Processes
+    </Button>
+  </Stack>
+</Stack>
         </Paper>
 
         {errorMessage && (
